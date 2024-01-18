@@ -232,6 +232,13 @@ class SollumzAddonPreferences(bpy.types.AddonPreferences):
         update=_save_preferences
     )
 
+    experimental_shader_expressions: bpy.props.BoolProperty(
+        name="Shader Expressions",
+        description="[Experimental] Use shader expressions to create material node trees",
+        default=False,
+        update=_save_preferences
+    )
+
     export_settings: bpy.props.PointerProperty(
         type=SollumzExportSettings, name="Export Settings")
     import_settings: bpy.props.PointerProperty(
@@ -244,6 +251,10 @@ class SollumzAddonPreferences(bpy.types.AddonPreferences):
         layout.prop(self, "extra_color_swatches")
         layout.prop(self, "sollumz_icon_header")
         layout.prop(self, "use_text_name_as_mat_name")
+
+        layout.separator()
+        layout.label(text="Experimental:")
+        layout.prop(self, "experimental_shader_expressions")
 
     def register():
         _load_preferences()
