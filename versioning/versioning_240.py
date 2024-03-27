@@ -88,3 +88,8 @@ def do_versions(data_version: int, data: BlendData):
         for scene in data.scenes:
             for ytyp in scene.ytyps:
                 update_mlo_tcmods_percentage(ytyp)
+
+    if data_version < 4:
+        # TODO: fix root CG offset changes!!!!!!!!!!!!1
+        pass
+

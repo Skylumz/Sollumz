@@ -197,9 +197,33 @@ class SOLLUMZ_PT_PHYS_LODS_PANEL(bpy.types.Panel):
         lod_props = obj.fragment_properties.lod_properties
 
         for prop in lod_props.__annotations__:
-            if prop == "archetype_properties":
+            if prop == "archetype_properties" or prop == "use_root_cg_offset_override":
                 continue
-            layout.prop(lod_props, prop)
+
+            if prop == "root_cg_offset_override":
+                # Just some custom UI to place a toggle button next to the vector prop and have it all neatly aligned...
+                row = layout.row(align=True)
+                split = row.split(factor=0.4, align=True)
+
+                labels_col = split.column(align=True)
+                labels_col.alignment = "RIGHT"
+                labels_col.label(text="Root CG Offset X")
+                labels_col.label(text="Y")
+                labels_col.label(text="Z")
+
+                inputs_col = split.column(align=True)
+                inputs_split = inputs_col.split(factor=0.94, align=True)
+                vals_col = inputs_split.column(align=True)
+                vals_col.active = lod_props.use_root_cg_offset_override
+                vals_col.prop(lod_props, "root_cg_offset_override", index=0, text="")
+                vals_col.prop(lod_props, "root_cg_offset_override", index=1, text="")
+                vals_col.prop(lod_props, "root_cg_offset_override", index=2, text="")
+                toggle_col = inputs_split.column(align=True)
+                toggle_col.scale_y = 3.0 # make the toggle button span the 3 rows
+                toggle_col.prop(lod_props, "use_root_cg_offset_override", toggle=True, icon="MODIFIER_ON", icon_only=True)
+            else:
+                layout.prop(lod_props, prop)
+
 
 
 class SOLLUMZ_PT_FRAG_ARCHETYPE_PANEL(bpy.types.Panel):
@@ -393,3 +417,74 @@ class SOLLUMZ_PT_FRAGMENT_MAT_PANEL(bpy.types.Panel):
         if not has_mat_diffuse_color:
             layout.label(
                 text="Not a paint shader. Shader must have a matDiffuseColor parameter.", icon="ERROR")
+
+
+import os
+SOLLUMZ_DEBUG = os.environ.get("SOLLUMZ_DEBUG", "false") == "true"
+if SOLLUMZ_DEBUG:
+    import bpy
+    from xml.etree import ElementTree as ET
+    import gpu
+    from gpu_extras.batch import batch_for_shader
+    from mathutils import Matrix, Vector
+    import numpy as np
+
+
+    batch1 = None
+    batch2 = None
+    def debug_init():
+        path = "D:\\re\\gta5\\sollumz\\TESTS\\TMP\\adder.yft_debug.xml"
+        tree = ET.ElementTree()
+        tree.parse(path)
+        root = tree.getroot()
+
+        coords1 = []
+        for item in root.findall("./InputLinkAttachments/Item"):
+            mat_values = np.fromstring(item.text, dtype=np.float32, sep=" ").reshape((4, 4))
+            mat = Matrix(mat_values)
+            mat.transpose()
+
+            s = 0.05
+            pos = mat @ Vector((0.0, 0.0, 0.0))
+            pos = mat.translation
+            coords1.append(pos + Vector((s, 0.0, 0.0)))
+            coords1.append(pos - Vector((s, 0.0, 0.0)))
+            coords1.append(pos + Vector((0.0, s, 0.0)))
+            coords1.append(pos - Vector((0.0, s, 0.0)))
+            coords1.append(pos + Vector((0.0, 0.0, s)))
+            coords1.append(pos - Vector((0.0, 0.0, s)))
+
+        coords2 = []
+        for item in root.findall("./OutputLinkAttachments/Item"):
+            mat_values = np.fromstring(item.text, dtype=np.float32, sep=" ").reshape((4, 4))
+            mat = Matrix(mat_values)
+            mat.transpose()
+
+            s = 0.05
+            pos = mat @ Vector((0.0, 0.0, 0.0))
+            pos = mat.translation
+            coords2.append(pos + Vector((s, 0.0, 0.0)))
+            coords2.append(pos - Vector((s, 0.0, 0.0)))
+            coords2.append(pos + Vector((0.0, s, 0.0)))
+            coords2.append(pos - Vector((0.0, s, 0.0)))
+            coords2.append(pos + Vector((0.0, 0.0, s)))
+            coords2.append(pos - Vector((0.0, 0.0, s)))
+
+        shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+        global batch1, batch2
+        batch1 = batch_for_shader(shader, 'LINES', {"pos": coords1})
+        batch2 = batch_for_shader(shader, 'LINES', {"pos": coords2})
+
+
+    def debug_draw():
+        if batch1 is None:
+            debug_init()
+        shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+        shader.uniform_float("color", (1, 0, 0, 1))
+        batch1.draw(shader)
+        shader.uniform_float("color", (0, 1, 0, 1))
+        batch2.draw(shader)
+
+
+    def register():
+        bpy.types.SpaceView3D.draw_handler_add(debug_draw, (), 'WINDOW', 'POST_VIEW')

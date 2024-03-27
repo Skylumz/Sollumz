@@ -159,8 +159,6 @@ def create_bound_geometry(geom_xml: BoundGeometry):
     geom_obj = create_blender_object(SollumType.BOUND_GEOMETRY, object_data=mesh)
     set_bound_child_properties(geom_xml, geom_obj)
 
-    set_bound_geometry_properties(geom_xml, geom_obj)
-
     return geom_obj
 
 
@@ -419,11 +417,6 @@ def get_bound_geom_mesh_data(
             colors.extend(_color_to_float(vertex_colors[v]) for v in [poly.v1, poly.v2, poly.v3])
 
     return verts, faces, np.array(colors, dtype=np.float64) if colors is not None else None
-
-
-def set_bound_geometry_properties(geom_xml: BoundGeometry, geom_obj: bpy.types.Object):
-    geom_obj.bound_properties.unk_float_1 = geom_xml.unk_float_1
-    geom_obj.bound_properties.unk_float_2 = geom_xml.unk_float_2
 
 
 def set_bound_properties(bound_xml: Bound, bound_obj: bpy.types.Object):

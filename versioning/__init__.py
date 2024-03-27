@@ -26,6 +26,7 @@ Version History:
  == v2.4.0 ==
   - 2: LOD system fixes.
   - 3: TimecycleModifierProperties.percentage IntProperty -> FloatProperty
+  - 4: fragment root CG offset auto-calculation changes  (TODO)
   - <next>: <describe changes>
 """
 

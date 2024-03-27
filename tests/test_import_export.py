@@ -35,6 +35,12 @@ if SOLLUMZ_TEST_TMP_DIR is not None:
 
         return list(map(lambda p: (p, str(p)), assets))
 
+    def elem_to_vec(e: ET.Element):
+        return np.array([float(e.get(k)) for k in ("x", "y", "z")])
+
+    def elem_to_float(e: ET.Element):
+        return np.array([float(e.get("value"))])
+
     @pytest.mark.parametrize("ydr_path, ydr_path_str", glob_assets("ydr"))
     def test_import_export_ydr(ydr_path: Path, ydr_path_str: str):
         obj = import_ydr(ydr_path_str)
@@ -205,3 +211,268 @@ if SOLLUMZ_TEST_TMP_DIR is not None:
             _check_exported_ycd(out_path)
 
             curr_input_path = out_path
+
+    @pytest.mark.parametrize("yft_path, yft_path_str", glob_assets("yft"))
+    def test_import_export_yft_link_attachment_calculation(yft_path: Path, yft_path_str: str):
+        if "sollumz_cube" in yft_path_str:
+            return
+
+        obj = import_yft(yft_path_str)
+        assert obj is not None
+
+        out_path = tmp_path(yft_path.name)
+        success = export_yft(obj, str(out_path))
+        assert success
+        assert out_path.exists()
+
+        input_tree = ET.ElementTree()
+        input_tree.parse(yft_path)
+        input_root = input_tree.getroot()
+
+        output_tree = ET.ElementTree()
+        output_tree.parse(out_path)
+        output_root = output_tree.getroot()
+
+        XPATH_ROOT_CG_OFFSET = "./Physics/LOD1/PositionOffset"
+        XPATH_LINK_ATTACHMENTS = "./Physics/LOD1/Transforms/Item"
+        XPATH_GROUPS = "./Physics/LOD1/Groups/Item"
+        XPATH_CHILDREN = "./Physics/LOD1/Children/Item"
+
+        input_root_cg_offset = input_root.find(XPATH_ROOT_CG_OFFSET)
+        input_link_attachments = input_root.findall(XPATH_LINK_ATTACHMENTS)
+        input_groups = input_root.findall(XPATH_GROUPS)
+        input_children = input_root.findall(XPATH_CHILDREN)
+        output_root_cg_offset = output_root.find(XPATH_ROOT_CG_OFFSET)
+        output_link_attachments = output_root.findall(XPATH_LINK_ATTACHMENTS)
+        output_groups = output_root.findall(XPATH_GROUPS)
+        output_children = output_root.findall(XPATH_CHILDREN)
+
+        if True:
+            import copy
+            debug_xml_path = tmp_path(yft_path.stem + "_debug.xml")
+            debug_root = ET.Element("FragmentDebug")
+            debug_input_link_attachments = ET.SubElement(debug_root, "InputLinkAttachments")
+            for i in input_link_attachments:
+                debug_input_link_attachments.append(copy.deepcopy(i))
+            debug_output_link_attachments = ET.SubElement(debug_root, "OutputLinkAttachments")
+            for o in output_link_attachments:
+                debug_output_link_attachments.append(copy.deepcopy(o))
+            debug_tree = ET.ElementTree(debug_root)
+            ET.indent(debug_tree, space="  ", level=0)
+            debug_tree.write(debug_xml_path)
+
+        def build_children_mapping(groups, children):
+            mapping = {}
+            for child_index, child in enumerate(children):
+                bone_tag = int(child.find("BoneTag").get("value"))
+                group_index = int(child.find("GroupIndex").get("value"))
+                group_name = groups[group_index].find("Name").text
+                child_key = (group_name, bone_tag)
+                mapping[child_key] = child_index
+            return mapping
+
+        input_children_mapping = build_children_mapping(input_groups, input_children)
+        output_children_mapping = build_children_mapping(output_groups, output_children)
+
+        # Sanity checks
+        assert input_children_mapping.keys() == output_children_mapping.keys(), "Children are different"
+        assert len(input_link_attachments) == len(output_link_attachments), "Different number of link attachments"
+        assert len(output_link_attachments) == len(output_children), "Number of link attachments different to number of children"
+
+        input_root_cg_offset_vec = elem_to_vec(input_root_cg_offset)
+        output_root_cg_offset_vec = elem_to_vec(output_root_cg_offset)
+        assert_allclose(
+            output_root_cg_offset_vec, input_root_cg_offset_vec,
+            atol=1e-4,
+            err_msg=(f"Fragment '{yft_path}', calculated root CG offset does not match original.\n"
+                     f"   diff={output_root_cg_offset_vec - input_root_cg_offset_vec}")
+        )
+
+        for child_key in input_children_mapping.keys():
+            input_child_index = input_children_mapping[child_key]
+            output_child_index = output_children_mapping[child_key]
+
+            input_link_attachment = input_link_attachments[input_child_index]
+            output_link_attachment = output_link_attachments[output_child_index]
+
+            input_values = np.fromstring(input_link_attachment.text, dtype=np.float32, sep=" ")
+            output_values = np.fromstring(output_link_attachment.text, dtype=np.float32, sep=" ")
+
+            input_values = input_values.reshape((4, 4))
+            output_values = output_values.reshape((4, 4))
+
+            mismatched = ~np.isclose(output_values, input_values, atol=1e-4)
+            assert_allclose(
+                output_values, input_values,
+                atol=1e-4,
+                err_msg=(f"Fragment '{yft_path}', calculated link attachment for child {child_key} does not match original.\n"
+                         f"   {input_values=}\n"
+                         f"   {output_values=}\n"
+                         f"   {mismatched=}\n"
+                         f"   {input_values[mismatched]=}\n"
+                         f"   {output_values[mismatched]=}\n"
+                         f"   diff={output_values[mismatched] - input_values[mismatched]}\n"
+                         f"   root CG diff={output_root_cg_offset_vec - input_root_cg_offset_vec}")
+            )
+            #
+            # err_msg=(f"Fragment '{yft_path}', calculated link attachment for child {child_key} does not match original.\n"
+            #          f"   {input_values=}\n"
+            #          f"   {output_values=}\n"
+            #          f"   {mismatched=}\n"
+            #          f"   {input_values[mismatched]=}\n"
+            #          f"   {output_values[mismatched]=}\n"
+            #          f"   diff={output_values[mismatched] - input_values[mismatched]}\n"
+            #          f"   root CG diff={output_root_cg_offset_vec - input_root_cg_offset_vec}")
+            # print(err_msg)
+
+    @pytest.mark.parametrize("yft_path, yft_path_str", glob_assets("yft"))
+    def test_import_export_yft_bounds_centroid_and_mass_properties_calculation(yft_path: Path, yft_path_str: str):
+        if "sollumz_cube" in yft_path_str:
+            return
+
+        obj = import_yft(yft_path_str)
+        assert obj is not None
+
+        out_path = tmp_path(yft_path.name)
+        success = export_yft(obj, str(out_path))
+        assert success
+        assert out_path.exists()
+
+        input_tree = ET.ElementTree()
+        input_tree.parse(yft_path)
+        input_root = input_tree.getroot()
+
+        output_tree = ET.ElementTree()
+        output_tree.parse(out_path)
+        output_root = output_tree.getroot()
+
+        XPATH_BOUNDS = "./Physics/LOD1/Archetype/Bounds/Children/Item"
+        XPATH_GROUPS = "./Physics/LOD1/Groups/Item"
+        XPATH_CHILDREN = "./Physics/LOD1/Children/Item"
+
+        input_bounds = input_root.findall(XPATH_BOUNDS)
+        output_bounds = output_root.findall(XPATH_BOUNDS)
+
+        input_groups = input_root.findall(XPATH_GROUPS)
+        input_children = input_root.findall(XPATH_CHILDREN)
+        output_groups = output_root.findall(XPATH_GROUPS)
+        output_children = output_root.findall(XPATH_CHILDREN)
+
+        assert len(input_bounds) == len(output_bounds), "Different number of bounds"
+
+        def build_children_mapping(groups, children, bounds):
+            # Not a perfect mapping, there can be multiple children in the same group and for the same bone.
+            # Included bound type in key to try making it more unique.
+            # Let's hope it's good enough for now...
+            mapping = {}
+            for child_index, child in enumerate(children):
+                bone_tag = int(child.find("BoneTag").get("value"))
+                group_index = int(child.find("GroupIndex").get("value"))
+                group_name = groups[group_index].find("Name").text
+                bound_type = bounds[child_index].get("type")
+                child_key = (group_name, bone_tag, bound_type)
+                mapping[child_key] = child_index
+            return mapping
+
+        input_children_mapping = build_children_mapping(input_groups, input_children, input_bounds)
+        output_children_mapping = build_children_mapping(output_groups, output_children, output_bounds)
+
+        for child_key in input_children_mapping.keys():
+            input_child_index = input_children_mapping[child_key]
+            output_child_index = output_children_mapping[child_key]
+
+            input_bound = input_bounds[input_child_index]
+            output_bound = output_bounds[output_child_index]
+
+            input_type = input_bound.get("type")
+            output_type = output_bound.get("type")
+            assert input_type == output_type, "Different bound type"
+
+
+            input_centroid = elem_to_vec(input_bound.find("BoxCenter"))
+            output_centroid = elem_to_vec(output_bound.find("BoxCenter"))
+
+            input_radius = elem_to_float(input_bound.find("SphereRadius"))
+            output_radius = elem_to_float(output_bound.find("SphereRadius"))
+
+            input_cg = elem_to_vec(input_bound.find("SphereCenter"))
+            output_cg = elem_to_vec(output_bound.find("SphereCenter"))
+
+            input_volume = elem_to_float(input_bound.find("Volume"))
+            output_volume = elem_to_float(output_bound.find("Volume"))
+
+            input_inertia = elem_to_vec(input_bound.find("Inertia"))
+            output_inertia = elem_to_vec(output_bound.find("Inertia"))
+
+            input_margin = elem_to_float(input_bound.find("Margin"))
+            output_margin = elem_to_float(output_bound.find("Margin"))
+
+            atol = 1e-3
+            if input_type == "Geometry" or input_type == "GeometryBVH":
+                input_bb_center = elem_to_vec(input_bound.find("GeometryCenter"))
+                output_bb_center = elem_to_vec(output_bound.find("GeometryCenter"))
+
+                assert_allclose(
+                    input_bb_center, output_bb_center,
+                    atol=atol,
+                    err_msg=(f"Fragment '{yft_path}', calculated geometry bounding-box center does not match original.\n"
+                             f"   diff={output_bb_center - input_bb_center}\n"
+                             f"   bound type={output_type}\n"
+                             f"   child={child_key}")
+                )
+                # skip the rest for now
+                # continue
+
+            assert_allclose(
+                output_centroid, input_centroid,
+                atol=atol,
+                err_msg=(f"Fragment '{yft_path}', calculated centroid does not match original.\n"
+                         f"   diff={output_centroid - input_centroid}\n"
+                         f"   bound type={output_type}\n"
+                         f"   child={child_key}")
+            )
+
+            assert_allclose(
+                output_radius, input_radius,
+                atol=atol,
+                err_msg=(f"Fragment '{yft_path}', calculated radius around centroid does not match original.\n"
+                         f"   diff={output_radius - input_radius}\n"
+                         f"   bound type={output_type}\n"
+                         f"   child={child_key}")
+            )
+
+            assert_allclose(
+                output_cg, input_cg,
+                atol=atol,
+                err_msg=(f"Fragment '{yft_path}', calculated CG does not match original.\n"
+                         f"   diff={output_cg - input_cg}\n"
+                         f"   bound type={output_type}\n"
+                         f"   child={child_key}")
+            )
+
+            assert_allclose(
+                output_volume, input_volume,
+                atol=atol,
+                err_msg=(f"Fragment '{yft_path}', calculated volume does not match original.\n"
+                         f"   diff={output_volume - input_volume}\n"
+                         f"   bound type={output_type}\n"
+                         f"   child={child_key}")
+            )
+
+            assert_allclose(
+                output_inertia, input_inertia,
+                atol=atol,
+                err_msg=(f"Fragment '{yft_path}', calculated inertia does not match original.\n"
+                         f"   diff={output_inertia - input_inertia}\n"
+                         f"   bound type={output_type}\n"
+                         f"   child={child_key}")
+            )
+
+            assert_allclose(
+                output_margin, input_margin,
+                atol=atol,
+                err_msg=(f"Fragment '{yft_path}', calculated margin does not match original.\n"
+                         f"   diff={output_margin - input_margin}\n"
+                         f"   bound type={output_type}\n"
+                         f"   child={child_key}")
+            )

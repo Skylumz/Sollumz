@@ -71,10 +71,6 @@ class SOLLUMZ_PT_BOUND_PROPERTIES_PANEL(bpy.types.Panel):
         grid.prop(obj.bound_properties, "inertia")
         grid.prop(obj.bound_properties, "volume")
 
-        if obj.sollum_type == SollumType.BOUND_GEOMETRY:
-            grid.prop(obj.bound_properties, "unk_float_1")
-            grid.prop(obj.bound_properties, "unk_float_2")
-
 
 class SOLLUMZ_PT_BOUND_SHAPE_PANEL(bpy.types.Panel):
     bl_label = "Shape"

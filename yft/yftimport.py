@@ -481,8 +481,8 @@ def set_lod_properties(lod_xml: PhysicsLOD, lod_props: LODProperties):
     lod_props.smallest_ang_inertia = lod_xml.unknown_14
     lod_props.largest_ang_inertia = lod_xml.unknown_18
     lod_props.min_move_force = lod_xml.unknown_1c
-    lod_props.position_offset = lod_xml.position_offset
-    lod_props.original_root_cg_offset = lod_xml.unknown_40
+    lod_props.root_cg_offset_override = lod_xml.position_offset
+    lod_props.use_root_cg_offset_override = True # TODO: determine if root CG offset was calculated or manually tweaked
     lod_props.unbroken_cg_offset = lod_xml.unknown_50
     lod_props.damping_linear_c = lod_xml.damping_linear_c
     lod_props.damping_linear_v = lod_xml.damping_linear_v

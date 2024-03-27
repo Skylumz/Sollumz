@@ -18,9 +18,11 @@ class LODProperties(bpy.types.PropertyGroup):
     smallest_ang_inertia: bpy.props.FloatProperty(name="Smallest Angular Inertia")
     largest_ang_inertia: bpy.props.FloatProperty(name="Largest Angular Inertia")
     min_move_force: bpy.props.FloatProperty(name="Min Move Force")
-    position_offset: bpy.props.FloatVectorProperty(name="Position Offset")
-    original_root_cg_offset: bpy.props.FloatVectorProperty(name="Original Root CG Offset")
-    unbroken_cg_offset: bpy.props.FloatVectorProperty(name="Unbroken CG Offset")
+    root_cg_offset_override: bpy.props.FloatVectorProperty(name="Root CG Offset", subtype="XYZ")
+    use_root_cg_offset_override: bpy.props.BoolProperty(
+        name="Override Root CG Offset", description="Specify the root center of gravity instead of auto-calculating it",
+        default=False)
+    unbroken_cg_offset: bpy.props.FloatVectorProperty(name="Unbroken CG Offset", subtype="XYZ")
     damping_linear_c: bpy.props.FloatVectorProperty(name="Damping Linear C", default=(0.02, 0.02, 0.02))
     damping_linear_v: bpy.props.FloatVectorProperty(name="Damping Linear V", default=(0.02, 0.02, 0.02))
     damping_linear_v2: bpy.props.FloatVectorProperty(name="Damping Linear V2", default=(0.01, 0.01, 0.01))

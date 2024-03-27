@@ -529,22 +529,35 @@ def calculate_physics_lod_transforms(frag_xml: Fragment):
     links_center_of_gravity = [Vector((0.0, 0.0, 0.0)) for _ in range(len(links))]
     for link_index, groups in enumerate(links):
         link_total_mass = 0.0
-        for group in groups:
-            for child_index, child in children_by_group[group]:
+        for group_index, group in enumerate(groups):
+            for child_index_rel, (child_index, child) in enumerate(children_by_group[group]):
                 bound = lod_xml.archetype.bounds.children[child_index]
                 if bound is not None:
                     # sphere_center is the center of gravity
                     center = bound.composite_transform.transposed() @ bound.sphere_center
+                    # print(f"link_bounds_cgs[{link_index}][{group_index}][{child_index_rel}]={bound.sphere_center}")
                 else:
                     center = Vector((0.0, 0.0, 0.0))
+                    # print(f"link_bounds_cgs[{link_index}][{group_index}][{child_index_rel}]={Vector((-999.99, -999.99, -999.99))}")
+
+                # print(f"link_children_center[{link_index}][{group_index}][{child_index_rel}]={center}")
                 child_mass = child.pristine_mass
                 links_center_of_gravity[link_index] += center * child_mass
                 link_total_mass += child_mass
 
+        # print(f"link_total_mass[{link_index}]={link_total_mass}")
         links_center_of_gravity[link_index] /= link_total_mass
+
+    # for i, _ in enumerate(links_center_of_gravity):
+    #     print(f"links_center_of_gravity[{i}]={links_center_of_gravity[i]}")
+
+    # TODO: check root CG offset override
+    lod_xml.position_offset = links_center_of_gravity[0] # aka "root CG offset"
+    lod_xml.unknown_40 = lod_xml.position_offset # aka "original root CG offset", same as root CG offset in all game .yfts
 
     # Calculate child transforms (aka "link attachments", offset from bound to link CG)
     for child_index, child in enumerate(lod_xml.children):
+        # print(f"#{child_index} ({child.bone_tag}) link_index={link_index_by_group[child.group_index]}")
         link_center = links_center_of_gravity[link_index_by_group[child.group_index]]
         bound = lod_xml.archetype.bounds.children[child_index]
         if bound is not None:
@@ -552,6 +565,11 @@ def calculate_physics_lod_transforms(frag_xml: Fragment):
             offset.transpose()
         else:
             offset = Matrix.Identity(4)
+
+        # It is a 3x4 matrix, so zero out the 4th column to be consistent with original matrices
+        # (doesn't really matter but helps with equality checks in our tests)
+        offset.col[3].zero()
+
         lod_xml.transforms.append(Transform("Item", offset))
 
 
@@ -927,8 +945,6 @@ def set_lod_xml_properties(lod_props: LODProperties, lod_xml: PhysicsLOD):
     lod_xml.unknown_14 = lod_props.smallest_ang_inertia
     lod_xml.unknown_18 = lod_props.largest_ang_inertia
     lod_xml.unknown_1c = lod_props.min_move_force
-    lod_xml.position_offset = prop_array_to_vector(lod_props.position_offset)
-    lod_xml.unknown_40 = prop_array_to_vector(lod_props.original_root_cg_offset)
     lod_xml.unknown_50 = prop_array_to_vector(lod_props.unbroken_cg_offset)
     lod_xml.damping_linear_c = prop_array_to_vector(lod_props.damping_linear_c)
     lod_xml.damping_linear_v = prop_array_to_vector(lod_props.damping_linear_v)
