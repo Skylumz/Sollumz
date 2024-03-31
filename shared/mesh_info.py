@@ -145,6 +145,74 @@ def calc_face_projected_areas(v0, v1, v2):
 
     return sx, sy, sz
 
+def get_mass_properties_of_mesh(mesh_vertices, mesh_faces):
+    triangles = mesh_vertices[mesh_faces]
+
+    v0 = triangles[:, 0, :]
+    v1 = triangles[:, 1, :]
+    v2 = triangles[:, 2, :]
+    v0x = triangles[:, 0, 0]
+    v0y = triangles[:, 0, 1]
+    v0z = triangles[:, 0, 2]
+    v1x = triangles[:, 1, 0]
+    v1y = triangles[:, 1, 1]
+    v1z = triangles[:, 1, 2]
+    v2x = triangles[:, 2, 0]
+    v2y = triangles[:, 2, 1]
+    v2z = triangles[:, 2, 2]
+
+    if is_mesh_solid(mesh_vertices, mesh_faces):
+        tri_tetrahedron_volumes = (v0 * np.cross(v1, v2, axis=1)).sum(axis=1) / 6
+        tri_tetrahedron_cgs = (v0 + v1 + v2) / 4
+        tri_tetrahedron_cgs *= tri_tetrahedron_volumes[:, np.newaxis]
+        volume = abs(tri_tetrahedron_volumes.sum())
+        cg = tri_tetrahedron_cgs.sum(axis=0) / volume
+        cg = Vector(cg)
+    else:
+        # Since the mesh is open, we approximate the center of gravity with the average of the triangle
+        # centroids scaled by their area.
+        tri_areas = np.linalg.norm(np.cross(v0 - v1, v2 - v1, axis=1), axis=1) / 2
+        tri_cgs = (v0 + v1 + v2) / 3
+        tri_cgs *= tri_areas[:, np.newaxis]
+        cg = tri_cgs.sum(axis=0) / tri_areas.sum()
+        cg = Vector(cg)
+
+    # The mesh is open so it doesn't really have a volume, but the following formula matches the values
+    # in the original assets .
+    #
+    # The idea is we create a tetrahedron for each triangle in the mesh using the vertices of the
+    # triangle and a vertex at the origin (0, 0, 0). Then, we calculate the signed volume of each
+    # tetrahedron and sum them up to get the total volume of our mesh. Depending on the orientation
+    # of the triangles (facing towards the origin or away), each tetrahedron volume may end up positive
+    # or negative so summing them up removes the volume part outside the mesh and we are left with the
+    # volume only inside our mesh.
+    # And we do similarly with the moment of inertia.
+    #
+    # http://chenlab.ece.cornell.edu/Publication/Cha/icip01_Cha.pdf
+
+    # formula 6
+    tri_tetrahedron_volumes = (v0 * np.cross(v1, v2, axis=1)).sum(axis=1) / 6
+    volume = abs(tri_tetrahedron_volumes.sum())
+
+    # formulas 9a, 9b and 9c: https://thescipub.com/pdf/jmssp.2005.8.11.pdf
+    a = (v0y * v0y + v0y * v1y + v1y * v1y + v0y * v2y + v1y * v2y + v2y * v2y +
+         v0z * v0z + v0z * v1z + v1z * v1z * v0z * v2z + v1z * v2z + v2z * v2z)
+    b = (v0z * v0z + v0z * v1z + v1z * v1z + v0z * v2z + v1z * v2z + v2z * v2z +
+         v0x * v0x + v0x * v1x + v1x * v1x * v0x * v2x + v1x * v2x + v2x * v2x)
+    c = (v0x * v0x + v0x * v1x + v1x * v1x + v0x * v2x + v1x * v2x + v2x * v2x +
+         v0y * v0y + v0y * v1y + v1y * v1y * v0y * v2y + v1y * v2y + v2y * v2y)
+    a = (6 * np.abs(tri_tetrahedron_volumes) * a).sum() / 60
+    b = (6 * np.abs(tri_tetrahedron_volumes) * b).sum() / 60
+    c = (6 * np.abs(tri_tetrahedron_volumes) * c).sum() / 60
+    ixx = a / volume
+    iyy = b / volume
+    izz = c / volume
+    inertia = Vector((ixx, iyy, izz))
+    # print("> get_mass_properties_of_mesh_shell")
+    # print(f"{volume=:.5f}")
+    # print(f"cg={cg.x:.5f}, {cg.y:.5f}, {cg.z:.5f}")
+    # print(f"inertia={inertia.x:.5f}, {inertia.y:.5f}, {inertia.z:.5f}")
+    return volume, cg, inertia
 
 def get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces):
     """

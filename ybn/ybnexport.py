@@ -196,6 +196,7 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
             get_centroid_of_mesh,
             get_mass_properties_of_mesh_solid,
             get_mass_properties_of_mesh_shell,
+            get_mass_properties_of_mesh,
             is_mesh_solid
         )
 
@@ -205,18 +206,22 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
             mesh_faces.append([poly.v1, poly.v2, poly.v3])
         mesh_faces = np.array(mesh_faces)
 
-        is_solid = is_mesh_solid(mesh_vertices, mesh_faces)
+        # is_solid = is_mesh_solid(mesh_vertices, mesh_faces)
+        # centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
+        # if is_solid:
+        #     _, _, _ = get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces)
+        #     volume, cg, inertia = get_mass_properties_of_mesh_solid(mesh_vertices, mesh_faces)
+        # else:
+        #     # TODO: mass properties for non-solid meshes
+        #     volume, cg, inertia = get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces)
+        #     _, _, _ = get_mass_properties_of_mesh_solid(mesh_vertices, mesh_faces)
+        #     # volume = geom_xml.volume
+        #     # cg = geom_xml.sphere_center
+        #     # inertia = geom_xml.inertia
+
         centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
-        if is_solid:
-            _, _, _ = get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces)
-            volume, cg, inertia = get_mass_properties_of_mesh_solid(mesh_vertices, mesh_faces)
-        else:
-            # TODO: mass properties for non-solid meshes
-            volume, cg, inertia = get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces)
-            _, _, _ = get_mass_properties_of_mesh_solid(mesh_vertices, mesh_faces)
-            # volume = geom_xml.volume
-            # cg = geom_xml.sphere_center
-            # inertia = geom_xml.inertia
+        volume, cg, inertia = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
+
 
         geom_xml.box_center = centroid
         geom_xml.sphere_radius = radius_around_centroid
