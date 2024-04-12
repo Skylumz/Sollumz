@@ -50,6 +50,8 @@ from ..ybn.ybnexport import create_composite_xml, create_bound_xml
 from .properties import get_model_properties
 from .render_bucket import RenderBucket
 from .vertex_buffer_builder import VertexBufferBuilder, dedupe_and_get_indices, remove_arr_field, remove_unused_colors, get_bone_by_vgroup, remove_unused_uvs
+from .cable_vertex_buffer_builder import CableVertexBufferBuilder
+from .cable import is_cable_mesh
 from .lights import create_xml_lights
 from ..cwxml.shader import ShaderManager, ShaderDef, ShaderParameterFloatVectorDef, ShaderParameterType
 
@@ -234,9 +236,9 @@ def set_model_xml_properties(model_obj: bpy.types.Object, lod_level: LODLevel, b
 
 
 def create_geometries_xml(mesh_eval: bpy.types.Mesh, materials: list[bpy.types.Material], bones: Optional[list[bpy.types.Bone]] = None, vertex_groups: Optional[list[bpy.types.VertexGroup]] = None) -> list[Geometry]:
-    if len(mesh_eval.loops) == 0:
-        logger.warning(
-            f"Drawable Model '{mesh_eval.original.name}' has no Geometry! Skipping...")
+    is_cable = is_cable_mesh(mesh_eval)
+    if len(mesh_eval.loops) == 0 and not is_cable: # cable mesh don't have faces, so no loops either
+        logger.warning(f"Drawable Model '{mesh_eval.original.name}' has no Geometry! Skipping...")
         return []
 
     if not mesh_eval.materials:
@@ -244,9 +246,22 @@ def create_geometries_xml(mesh_eval: bpy.types.Mesh, materials: list[bpy.types.M
             f"Could not create geometries for Drawable Model '{mesh_eval.original.name}': Mesh has no Sollumz materials!")
         return []
 
+    geometries: list[Geometry] = []
+
+    if is_cable:
+        vert_buffer = CableVertexBufferBuilder(mesh_eval).build()
+        vert_buffer, ind_buffer = dedupe_and_get_indices(vert_buffer)
+
+        geom_xml = Geometry()
+        geom_xml.bounding_box_max, geom_xml.bounding_box_min = get_geom_extents(vert_buffer["Position"])
+        geom_xml.shader_index = 0  # TODO: actually get cable material index
+        geom_xml.vertex_buffer.data = vert_buffer
+        geom_xml.index_buffer.data = ind_buffer
+        geometries.append(geom_xml)
+        return geometries
+
     loop_inds_by_mat = get_loop_inds_by_material(mesh_eval, materials)
 
-    geometries: list[Geometry] = []
 
     bone_by_vgroup = get_bone_by_vgroup(
         vertex_groups, bones) if bones and vertex_groups else None

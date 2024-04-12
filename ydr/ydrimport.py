@@ -16,6 +16,8 @@ from ..tools.utils import get_filename
 from ..shared.shader_nodes import SzShaderNodeParameter
 from .model_data import ModelData, get_model_data, get_model_data_split_by_group
 from .mesh_builder import MeshBuilder
+from .cable_mesh_builder import CableMeshBuilder
+from .cable import CABLE_SHADER_NAME
 from ..lods import LODLevels
 from .lights import create_light_objs
 from .properties import DrawableModelProperties
@@ -118,13 +120,22 @@ def create_lod_meshes(model_data: ModelData, model_obj: bpy.types.Object, materi
         mesh_name = f"{model_obj.name}_{SOLLUMZ_UI_NAMES[lod_level].lower().replace(' ', '_')}"
 
         try:
-            mesh_builder = MeshBuilder(
-                mesh_name,
-                mesh_data.vert_arr,
-                mesh_data.ind_arr,
-                mesh_data.mat_inds,
-                materials
-            )
+            if len(materials) == 1 and materials[0].shader_properties.filename == CABLE_SHADER_NAME:
+                mesh_builder = CableMeshBuilder(
+                    mesh_name,
+                    mesh_data.vert_arr,
+                    mesh_data.ind_arr,
+                    mesh_data.mat_inds,
+                    materials
+                )
+            else:
+                mesh_builder = MeshBuilder(
+                    mesh_name,
+                    mesh_data.vert_arr,
+                    mesh_data.ind_arr,
+                    mesh_data.mat_inds,
+                    materials
+                )
 
             lod_mesh = mesh_builder.build()
         except:
