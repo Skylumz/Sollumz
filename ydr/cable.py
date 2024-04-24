@@ -2,6 +2,9 @@ from bpy.types import (
     Object,
     Mesh,
 )
+from bmesh.types import (
+    BMesh,
+)
 from enum import Enum
 from typing import Optional
 import numpy as np
@@ -98,6 +101,29 @@ def mesh_get_cable_attribute_values(mesh: Mesh, attr: CableAttr) -> np.ndarray:
 
     return values
 
+
+# def bmesh_get_cable_attribute_values(mesh: BMesh, attr: CableAttr) -> np.ndarray:
+#     num = 0
+#     match attr.domain:
+#         case "POINT":
+#             num = len(mesh.verts)
+#         case _:
+#             assert False, f"Domain '{attr.domain}' not handled"
+#
+#
+#     values = np.array([attr.default_value] * num)
+#     # mesh_attr = mesh.attributes.get(attr, None)
+#     match attr.type:
+#         case "FLOAT":
+#             mesh_layer = mesh.verts.layers.float.get(attr, None)
+#         case _:
+#             assert False, f"Type '{attr.type}' not handled"
+#
+#     if mesh_layer is not None:
+#         # field = "vector" if attr.type == "FLOAT2" else "value" 
+#         values[:] = [v[mesh_layer] for v in mesh.verts]
+#
+#     return values
 
 def is_cable_mesh_object(mesh_obj: Optional[Object]) -> bool:
     """Gets whether the object has a valid cable mesh."""

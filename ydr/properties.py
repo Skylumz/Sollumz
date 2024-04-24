@@ -615,6 +615,35 @@ def register():
     ), default=0)
 
 
+    from .cable import CableAttr
+    bpy.types.Scene.sollumz_ui_cable_radius_visualize = bpy.props.BoolProperty(
+        name="Show Radius", description="Display the cable radius values on the 3D Viewport",
+        default=False
+    )
+    bpy.types.Scene.sollumz_ui_cable_radius = bpy.props.FloatProperty(
+        name=CableAttr.RADIUS.label, description=CableAttr.RADIUS.description,
+        min=0.0001, default=CableAttr.RADIUS.default_value,
+        subtype="DISTANCE"
+    )
+    bpy.types.Scene.sollumz_ui_cable_diffuse_factor_visualize = bpy.props.BoolProperty(
+        name="Show Diffuse Factor", description="Display the cable diffuse factor values on the 3D Viewport",
+        default=False
+    )
+    bpy.types.Scene.sollumz_ui_cable_diffuse_factor = bpy.props.FloatProperty(
+        name=CableAttr.DIFFUSE_FACTOR.label, description=CableAttr.DIFFUSE_FACTOR.description,
+        min=0.0, max=1.0, default=CableAttr.DIFFUSE_FACTOR.default_value,
+        subtype="FACTOR"
+    )
+    bpy.types.Scene.sollumz_ui_cable_um_scale_visualize = bpy.props.BoolProperty(
+        name="Show Micromovements Scale", description="Display the cable micromovements scale values on the 3D Viewport",
+        default=False
+    )
+    bpy.types.Scene.sollumz_ui_cable_um_scale = bpy.props.FloatProperty(
+        name=CableAttr.UM_SCALE.label, description=CableAttr.UM_SCALE.description,
+        min=0.0, default=CableAttr.UM_SCALE.default_value
+    )
+
+
 def unregister():
     del bpy.types.ShaderNodeTexImage.sollumz_texture_name
     del bpy.types.Scene.shader_material_index
@@ -641,5 +670,7 @@ def unregister():
     del bpy.types.Scene.sollumz_auto_lod_decimate_step
     del bpy.types.Scene.sollumz_extract_lods_levels
     del bpy.types.Scene.sollumz_extract_lods_parent_type
+    del bpy.types.Scene.sollumz_ui_cable_radius_visualize
+    del bpy.types.Scene.sollumz_ui_cable_radius
 
     bpy.app.handlers.load_post.remove(on_file_loaded)
