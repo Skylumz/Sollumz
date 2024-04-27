@@ -64,7 +64,8 @@ class CableMeshBuilder:
             verts_radius.extend(p.radius for p in piece.points)
             verts_diffuse_factor.extend(p.diffuse_factor for p in piece.points)
             verts_um_scale.extend(p.um_scale for p in piece.points)
-            verts_phase_offset.extend(p.phase_offset for p in piece.points)
+            # NOTE: phase offset actually stored as FLOAT_VECTOR
+            verts_phase_offset.extend((p.phase_offset[0], p.phase_offset[1], 0.0) for p in piece.points)
             edges.extend(zip(range(first_idx, last_idx), range(first_idx + 1, last_idx + 1)))
 
         mesh.from_pydata(verts, edges, [])

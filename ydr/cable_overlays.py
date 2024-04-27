@@ -47,9 +47,10 @@ class CableOverlaysDrawHandler:
     def can_draw_anything(self) -> bool:
         context = bpy.context
         scene = context.scene
-        if (not scene.sollumz_ui_cable_radius_visualize and
-            not scene.sollumz_ui_cable_diffuse_factor_visualize and
-                not scene.sollumz_ui_cable_um_scale_visualize):
+        if (not scene.sz_ui_cable_radius_visualize and
+            not scene.sz_ui_cable_diffuse_factor_visualize and
+            not scene.sz_ui_cable_um_scale_visualize and
+            not scene.sz_ui_cable_phase_offset_visualize):
             return False
 
         obj = context.active_object
@@ -67,12 +68,14 @@ class CableOverlaysDrawHandler:
         obj = context.active_object
 
         attrs = []
-        if scene.sollumz_ui_cable_radius_visualize:
+        if scene.sz_ui_cable_radius_visualize:
             attrs.append(CableAttr.RADIUS)
-        if scene.sollumz_ui_cable_diffuse_factor_visualize:
+        if scene.sz_ui_cable_diffuse_factor_visualize:
             attrs.append(CableAttr.DIFFUSE_FACTOR)
-        if scene.sollumz_ui_cable_um_scale_visualize:
+        if scene.sz_ui_cable_um_scale_visualize:
             attrs.append(CableAttr.UM_SCALE)
+        if scene.sz_ui_cable_phase_offset_visualize:
+            attrs.append(CableAttr.PHASE_OFFSET)
         self.draw_attribute_values(obj, attrs)
 
     def draw_geometry(self):
@@ -83,7 +86,7 @@ class CableOverlaysDrawHandler:
         scene = context.scene
         obj = context.active_object
 
-        if scene.sollumz_ui_cable_radius_visualize:
+        if scene.sz_ui_cable_radius_visualize:
             self.draw_radius_geometry(obj)
 
     def draw_attribute_values(self, cable_obj: Object, attrs: Sequence[CableAttr]):
@@ -101,12 +104,15 @@ class CableOverlaysDrawHandler:
 
         matrix_world = cable_obj.matrix_world
 
-        def _draw_vertex_attributes(pos: Vector, attr_values: Sequence[float]):
+        def _draw_vertex_attributes(pos: Vector, attr_values):
             pos = matrix_world @ pos
             pos = location_3d_to_region_2d(region, rv3d, pos)
             if pos:
                 for i, attr_value in enumerate(attr_values):
-                    attr_str = f"{attr_value:.2f}"
+                    if attrs[i] == CableAttr.PHASE_OFFSET: # phase offset is a FLOAT_VECTOR, not FLOAT
+                        attr_str = f"{attr_value[0]:.2f}  {attr_value[1]:.2f}"
+                    else:
+                        attr_str = f"{attr_value:.2f}"
                     w, h = blf.dimensions(font_id, attr_str)
                     attr_pos = pos - Vector((w * 0.5, h * i * 2 - (h * len(attr_values) / 2)))
                     blf.position(font_id, attr_pos.x, attr_pos.y, 0.0)
@@ -114,7 +120,7 @@ class CableOverlaysDrawHandler:
 
         if cable_obj.mode == "EDIT":
             edit_mesh = bmesh.from_edit_mesh(mesh)
-            attr_layers = [edit_mesh.verts.layers.float.get(attr, None) for attr in attrs]
+            attr_layers = [(edit_mesh.verts.layers.float_vector if attr.type == "FLOAT_VECTOR" else edit_mesh.verts.layers.float).get(attr, None) for attr in attrs]
             for v in edit_mesh.verts:
                 attr_values = [attr.default_value if attr_layers[i] is None else v[attr_layers[i]]
                                for i, attr in enumerate(attrs)]

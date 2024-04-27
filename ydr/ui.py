@@ -754,36 +754,38 @@ class SOLLUMZ_PT_CABLE_TOOLS_PANEL(bpy.types.Panel):
 
         row = layout.row(align=True)
         row.label(text=CableAttr.RADIUS.label)
-        _visible_icon_prop(row, scene, "sollumz_ui_cable_radius_visualize")
+        _visible_icon_prop(row, scene, "sz_ui_cable_radius_visualize")
 
         row = layout.row(align=True)
         op = row.operator(cable_ops.SOLLUMZ_OT_cable_set_radius.bl_idname, text="Set")
-        op.value = scene.sollumz_ui_cable_radius
-        row.prop(scene, "sollumz_ui_cable_radius", text="")
+        op.value = scene.sz_ui_cable_radius
+        row.prop(scene, "sz_ui_cable_radius", text="")
 
 
         row = layout.row(align=True)
         row.label(text=CableAttr.DIFFUSE_FACTOR.label)
-        _visible_icon_prop(row, scene, "sollumz_ui_cable_diffuse_factor_visualize")
+        _visible_icon_prop(row, scene, "sz_ui_cable_diffuse_factor_visualize")
 
         row = layout.row(align=True)
         op = row.operator(cable_ops.SOLLUMZ_OT_cable_set_diffuse_factor.bl_idname, text="Set")
-        op.value = scene.sollumz_ui_cable_diffuse_factor
-        row.prop(scene, "sollumz_ui_cable_diffuse_factor", text="")
+        op.value = scene.sz_ui_cable_diffuse_factor
+        row.prop(scene, "sz_ui_cable_diffuse_factor", text="")
 
 
         row = layout.row(align=True)
         row.label(text=CableAttr.UM_SCALE.label)
-        _visible_icon_prop(row, scene, "sollumz_ui_cable_um_scale_visualize")
+        _visible_icon_prop(row, scene, "sz_ui_cable_um_scale_visualize")
 
         row = layout.row(align=True)
         op = row.operator(cable_ops.SOLLUMZ_OT_cable_set_um_scale.bl_idname, text="Set")
-        op.value = scene.sollumz_ui_cable_um_scale
-        row.prop(scene, "sollumz_ui_cable_um_scale", text="")
-
+        op.value = scene.sz_ui_cable_um_scale
+        row.prop(scene, "sz_ui_cable_um_scale", text="")
 
 
         row = layout.row(align=True)
         row.label(text=CableAttr.PHASE_OFFSET.label)
-        # _visible_icon_prop(row, scene, "sollumz_ui_cable_um_scale_visualize")
+        _visible_icon_prop(row, scene, "sz_ui_cable_phase_offset_visualize")
+
+        row = layout.row(align=True)
+        op = row.operator(cable_ops.SOLLUMZ_OT_cable_randomize_phase_offset.bl_idname, text="Randomize")
 

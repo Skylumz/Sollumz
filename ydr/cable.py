@@ -2,12 +2,10 @@ from bpy.types import (
     Object,
     Mesh,
 )
-from bmesh.types import (
-    BMesh,
-)
 from enum import Enum
 from typing import Optional
 import numpy as np
+from mathutils import Vector
 from ..sollumz_properties import SollumType
 
 CABLE_SHADER_NAME = "cable.sps"
@@ -22,7 +20,7 @@ class CableAttr(str, Enum):
     def type(self):
         match self:
             case CableAttr.PHASE_OFFSET:
-                return "FLOAT2"
+                return "FLOAT_VECTOR" # actually should be FLOAT2, but BMesh API doesn't expose those values
             case _:
                 return "FLOAT"
 
@@ -40,7 +38,7 @@ class CableAttr(str, Enum):
             case CableAttr.UM_SCALE:
                 return 1.0
             case CableAttr.PHASE_OFFSET:
-                return (0.0, 0.0)
+                return Vector((0.0, 0.0, 0.0))
             case _:
                 assert False, f"Default value not set for cable attribute '{self}'"
 
@@ -68,7 +66,7 @@ class CableAttr(str, Enum):
             case CableAttr.UM_SCALE:
                 return "Determines how much the cable moves: 0 = no micromovements"
             case CableAttr.PHASE_OFFSET:
-                return ""
+                return "Applies an offset to the simulation phase. Used to prevent movement of different cables from synchronizing"
             case _:
                 assert False, f"Label not set for cloth attribute '{self}'"
 
@@ -96,34 +94,11 @@ def mesh_get_cable_attribute_values(mesh: Mesh, attr: CableAttr) -> np.ndarray:
     values = np.array([attr.default_value] * num)
     mesh_attr = mesh.attributes.get(attr, None)
     if mesh_attr is not None:
-        field = "vector" if attr.type == "FLOAT2" else "value" 
+        field = "vector" if attr.type == "FLOAT_VECTOR" else "value"
         mesh_attr.data.foreach_get(field, values.ravel())
 
     return values
 
-
-# def bmesh_get_cable_attribute_values(mesh: BMesh, attr: CableAttr) -> np.ndarray:
-#     num = 0
-#     match attr.domain:
-#         case "POINT":
-#             num = len(mesh.verts)
-#         case _:
-#             assert False, f"Domain '{attr.domain}' not handled"
-#
-#
-#     values = np.array([attr.default_value] * num)
-#     # mesh_attr = mesh.attributes.get(attr, None)
-#     match attr.type:
-#         case "FLOAT":
-#             mesh_layer = mesh.verts.layers.float.get(attr, None)
-#         case _:
-#             assert False, f"Type '{attr.type}' not handled"
-#
-#     if mesh_layer is not None:
-#         # field = "vector" if attr.type == "FLOAT2" else "value" 
-#         values[:] = [v[mesh_layer] for v in mesh.verts]
-#
-#     return values
 
 def is_cable_mesh_object(mesh_obj: Optional[Object]) -> bool:
     """Gets whether the object has a valid cable mesh."""

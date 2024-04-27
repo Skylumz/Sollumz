@@ -6,12 +6,15 @@ from bpy.types import (
 from bpy.props import (
     FloatProperty
 )
+from bpy_extras.mesh_utils import edge_loops_from_edges
+import numpy as np
 from .cable import (
     CableAttr,
     mesh_add_cable_attribute,
     mesh_has_cable_attribute,
     is_cable_mesh_object,
 )
+
 
 class CableEditRestrictedHelper:
     @classmethod
@@ -20,17 +23,13 @@ class CableEditRestrictedHelper:
         obj = context.active_object
         return obj is not None and obj.mode == "EDIT" and is_cable_mesh_object(obj)
 
-
-class SOLLUMZ_OT_cable_test(Operator, CableEditRestrictedHelper):
-    bl_idname = "sollumz.cable_test"
-    bl_label = "Cable Test"
-    bl_description = "Cable Test"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context):
+class CableRestrictedHelper:
+    @classmethod
+    def poll(cls, context: Context):
+        cls.poll_message_set("Must have a cable drawable model selected.")
         obj = context.active_object
-        print(f"{obj=}")
-        return {"FINISHED"}
+        return obj is not None and is_cable_mesh_object(obj)
+
 
 class CableSetAttributeBase(CableEditRestrictedHelper):
     bl_options = {"REGISTER", "UNDO"}
@@ -59,10 +58,13 @@ class CableSetAttributeBase(CableEditRestrictedHelper):
         bpy.ops.object.mode_set(mode=mode)
         return {"FINISHED"}
 
+
 class SOLLUMZ_OT_cable_set_radius(Operator, CableSetAttributeBase):
     bl_idname = "sollumz.cable_set_radius"
     bl_label = "Set Cable Radius"
-    bl_description = "Sets the radius of the cable at the selected vertices"
+    bl_description = (
+        "Sets the radius of the cable at the selected vertices.\n\n"
+    ) + f"{CableAttr.RADIUS.label}: {CableAttr.RADIUS.description}"
 
     attribute = CableAttr.RADIUS
     value: FloatProperty(
@@ -75,7 +77,9 @@ class SOLLUMZ_OT_cable_set_radius(Operator, CableSetAttributeBase):
 class SOLLUMZ_OT_cable_set_diffuse_factor(Operator, CableSetAttributeBase):
     bl_idname = "sollumz.cable_set_diffuse_factor"
     bl_label = "Set Cable Diffuse Factor"
-    bl_description = "Sets the diffuse factor of the cable at the selected vertices"
+    bl_description = (
+        "Sets the diffuse factor of the cable at the selected vertices.\n\n"
+    ) + f"{CableAttr.DIFFUSE_FACTOR.label}: {CableAttr.DIFFUSE_FACTOR.description}"
 
     attribute = CableAttr.DIFFUSE_FACTOR
     value: FloatProperty(
@@ -84,10 +88,13 @@ class SOLLUMZ_OT_cable_set_diffuse_factor(Operator, CableSetAttributeBase):
         subtype="FACTOR"
     )
 
+
 class SOLLUMZ_OT_cable_set_um_scale(Operator, CableSetAttributeBase):
     bl_idname = "sollumz.cable_set_um_scale"
     bl_label = "Set Cable Micromovements Scale"
-    bl_description = "Sets the micromovements scale of the cable at the selected vertices"
+    bl_description = (
+        "Sets the micromovements scale of the cable at the selected vertices.\n\n"
+    ) + f"{CableAttr.UM_SCALE.label}: {CableAttr.UM_SCALE.description}"
 
     attribute = CableAttr.UM_SCALE
     value: FloatProperty(
@@ -95,28 +102,33 @@ class SOLLUMZ_OT_cable_set_um_scale(Operator, CableSetAttributeBase):
         min=0.0, default=CableAttr.UM_SCALE.default_value
     )
 
-# class SOLLUMZ_OT_set_bounds_from_selection(SOLLUMZ_OT_base, bpy.types.Operator):
-#     """Set room bounds from selection (must be in edit mode)"""
-#     bl_idname = "sollumz.setroomboundsfromselection"
-#     bl_label = "Set Bounds From Selection"
-#
-#     @classmethod
-#     def poll(cls, context):
-#         return get_selected_room(context) is not None and (context.active_object and context.active_object.mode == "EDIT")
-#
-#     def run(self, context):
-#         selected_archetype = get_selected_archetype(context)
-#         selected_room = get_selected_room(context)
-#         selected_verts = []
-#         for obj in context.objects_in_mode:
-#             selected_verts.extend(get_selected_vertices(obj))
-#         if not len(selected_verts) > 1:
-#             self.message("You must select at least 2 vertices!")
-#             return False
-#         if not selected_archetype.asset:
-#             self.message("You must set an asset for the archetype.")
-#             return False
-#
-#         pos = selected_archetype.asset.location
-#
-#         return True
+
+class SOLLUMZ_OT_cable_randomize_phase_offset(Operator, CableRestrictedHelper):
+    bl_idname = "sollumz.cable_randomize_phase_offset"
+    bl_label = "Randomize Cable Phase Offset"
+    bl_description = (
+        "Sets the phase offset to a different random value for each cable piece (i.e. connected vertices receive the "
+        "same random value).\n\n"
+    ) + f"{CableAttr.PHASE_OFFSET.label}: {CableAttr.PHASE_OFFSET.description}"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        obj = context.active_object
+
+        mode = obj.mode
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+        mesh = obj.data
+        if not mesh_has_cable_attribute(mesh, CableAttr.PHASE_OFFSET):
+            mesh_add_cable_attribute(mesh, CableAttr.PHASE_OFFSET)
+
+        attr = mesh.attributes[CableAttr.PHASE_OFFSET]
+        pieces = edge_loops_from_edges(mesh)
+        phase_offsets = np.random.default_rng().random((len(pieces), 2))
+        for i, piece in enumerate(pieces):
+            x, y = phase_offsets[i]
+            for vi in piece:
+                attr.data[vi].vector = x, y, 0.0
+
+        bpy.ops.object.mode_set(mode=mode)
+        return {"FINISHED"}
