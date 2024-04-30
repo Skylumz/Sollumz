@@ -23,12 +23,13 @@ class CableEditRestrictedHelper:
         obj = context.active_object
         return obj is not None and obj.mode == "EDIT" and is_cable_mesh_object(obj)
 
+
 class CableRestrictedHelper:
     @classmethod
     def poll(cls, context: Context):
         cls.poll_message_set("Must have a cable drawable model selected.")
-        obj = context.active_object
-        return obj is not None and is_cable_mesh_object(obj)
+        objs = context.selected_objects
+        return any(is_cable_mesh_object(obj) for obj in objs)
 
 
 class CableSetAttributeBase(CableEditRestrictedHelper):
@@ -112,23 +113,26 @@ class SOLLUMZ_OT_cable_randomize_phase_offset(Operator, CableRestrictedHelper):
     ) + f"{CableAttr.PHASE_OFFSET.label}: {CableAttr.PHASE_OFFSET.description}"
     bl_options = {"REGISTER", "UNDO"}
 
-    def execute(self, context):
-        obj = context.active_object
+    def execute(self, context: Context):
+        for obj in context.selected_objects:
+            if not is_cable_mesh_object(obj):
+                continue
 
-        mode = obj.mode
-        bpy.ops.object.mode_set(mode="OBJECT")
+            mode = obj.mode
+            bpy.ops.object.mode_set(mode="OBJECT")
 
-        mesh = obj.data
-        if not mesh_has_cable_attribute(mesh, CableAttr.PHASE_OFFSET):
-            mesh_add_cable_attribute(mesh, CableAttr.PHASE_OFFSET)
+            mesh = obj.data
+            if not mesh_has_cable_attribute(mesh, CableAttr.PHASE_OFFSET):
+                mesh_add_cable_attribute(mesh, CableAttr.PHASE_OFFSET)
 
-        attr = mesh.attributes[CableAttr.PHASE_OFFSET]
-        pieces = edge_loops_from_edges(mesh)
-        phase_offsets = np.random.default_rng().random((len(pieces), 2))
-        for i, piece in enumerate(pieces):
-            x, y = phase_offsets[i]
-            for vi in piece:
-                attr.data[vi].vector = x, y, 0.0
+            attr = mesh.attributes[CableAttr.PHASE_OFFSET]
+            pieces = edge_loops_from_edges(mesh)
+            phase_offsets = np.random.default_rng().random((len(pieces), 2))
+            for i, piece in enumerate(pieces):
+                x, y = phase_offsets[i]
+                for vi in piece:
+                    attr.data[vi].vector = x, y, 0.0
 
-        bpy.ops.object.mode_set(mode=mode)
+            bpy.ops.object.mode_set(mode=mode)
+
         return {"FINISHED"}
