@@ -787,5 +787,10 @@ class SOLLUMZ_PT_CABLE_TOOLS_PANEL(bpy.types.Panel):
         _visible_icon_prop(row, scene, "sz_ui_cable_phase_offset_visualize")
 
         row = layout.row(align=True)
+        op = row.operator(cable_ops.SOLLUMZ_OT_cable_set_phase_offset.bl_idname, text="Set")
+        op.value = scene.sz_ui_cable_phase_offset
+        row.prop(scene, "sz_ui_cable_phase_offset", text="")
+
+        row = layout.row(align=True)
         op = row.operator(cable_ops.SOLLUMZ_OT_cable_randomize_phase_offset.bl_idname, text="Randomize")
 

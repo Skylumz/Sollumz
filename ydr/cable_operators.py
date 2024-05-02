@@ -2,9 +2,11 @@ import bpy
 from bpy.types import (
     Context,
     Operator,
+    Attribute,
 )
 from bpy.props import (
-    FloatProperty
+    FloatProperty,
+    FloatVectorProperty,
 )
 from bpy_extras.mesh_utils import edge_loops_from_edges
 import numpy as np
@@ -36,7 +38,6 @@ class CableSetAttributeBase(CableEditRestrictedHelper):
     bl_options = {"REGISTER", "UNDO"}
 
     attribute: CableAttr
-    value: float
 
     def execute(self, context):
         obj = context.active_object
@@ -54,10 +55,13 @@ class CableSetAttributeBase(CableEditRestrictedHelper):
             if not v.select:
                 continue
 
-            attr.data[v.index].value = self.value
+            self.do_set_attribute(v.index, attr)
 
         bpy.ops.object.mode_set(mode=mode)
         return {"FINISHED"}
+
+    def do_set_attribute(self, vertex_index: int, attr: Attribute):
+        attr.data[vertex_index].value = self.value
 
 
 class SOLLUMZ_OT_cable_set_radius(Operator, CableSetAttributeBase):
@@ -102,6 +106,24 @@ class SOLLUMZ_OT_cable_set_um_scale(Operator, CableSetAttributeBase):
         name=CableAttr.UM_SCALE.label, description=CableAttr.UM_SCALE.description,
         min=0.0, default=CableAttr.UM_SCALE.default_value
     )
+
+class SOLLUMZ_OT_cable_set_phase_offset(Operator, CableSetAttributeBase):
+    bl_idname = "sollumz.cable_set_phase_offset"
+    bl_label = "Set Cable Phase Offset"
+    bl_description = (
+        "Sets the phase offset of the cable at the selected vertices.\n\n"
+    ) + f"{CableAttr.PHASE_OFFSET.label}: {CableAttr.PHASE_OFFSET.description}"
+
+    attribute = CableAttr.PHASE_OFFSET
+    value: FloatVectorProperty(
+        name=CableAttr.PHASE_OFFSET.label, description=CableAttr.PHASE_OFFSET.description,
+        size=2, min=0.0, max=1.0, default=CableAttr.PHASE_OFFSET.default_value[0:2]
+    )
+
+    def do_set_attribute(self, vertex_index: int, attr: Attribute):
+        x, y = self.value
+        attr.data[vertex_index].vector = x, y, 0.0
+
 
 
 class SOLLUMZ_OT_cable_randomize_phase_offset(Operator, CableRestrictedHelper):
