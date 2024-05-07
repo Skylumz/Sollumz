@@ -66,22 +66,29 @@ class CableVertexBufferBuilder:
             start = Vector(verts_position[piece_vertices[0]])
             end = Vector(verts_position[piece_vertices[-1]])
             for i in range(num_vertices):
-                v0 = piece_vertices[i]
-                p0 = Vector(verts_position[v0])
-                if i + 1 < num_vertices:
-                    # For all but the last, the tangent is the direction from this vertex to the next one
-                    v1 = piece_vertices[i + 1]
-                    p1 = Vector(verts_position[v1])
-                    tangent = (p1 - p0).normalized()
+                vcurr = piece_vertices[i]
+                pcurr = Vector(verts_position[vcurr])
+                if i == 0:
+                    # For the first vertex, tangent is just the direction to the next vertex
+                    vnext = piece_vertices[i + 1]
+                    pnext = Vector(verts_position[vnext])
+                    tangent = (pnext - pcurr).normalized()
+                elif i + 1 < num_vertices:
+                    # For the middle points, tangent is the direction from the previous vertex to the next one
+                    vprev = piece_vertices[i - 1]
+                    vnext = piece_vertices[i + 1]
+                    pprev = Vector(verts_position[vprev])
+                    pnext = Vector(verts_position[vnext])
+                    tangent = (pnext - pprev).normalized()
                 else:
                     # For the last, use the direction from the previous vertex to this one
-                    vM1 = piece_vertices[i - 1]
-                    pM1 = Vector(verts_position[vM1])
-                    tangent = (p0 - pM1).normalized()
+                    vprev = piece_vertices[i - 1]
+                    pprev = Vector(verts_position[vprev])
+                    tangent = (pcurr - pprev).normalized()
 
                 tangents[i] = tangent
 
-                distances[i] = distance_point_to_line(start, end, p0)
+                distances[i] = distance_point_to_line(start, end, pcurr)
 
             # Build output vertices
             for i0 in range(num_vertices - 1):
