@@ -99,13 +99,19 @@ class CableMeshBuilder:
     def _gather_pieces(self) -> list[CablePiece]:
         pieces = []
 
-        uniq_points, uniq_index, uniq_inverse_index = np.unique(self.vertex_arr["Position"], return_index=True, return_inverse=True, axis=0)
+        # Get the unique vertex positions to simplify finding the cable pieces as the same vertex can appear multiple
+        # times with positive/negative radius attribute within the two triangles that connect each segment.
+        # We also take the tangent into account for the cases where two or more cables share a point. In these cases,
+        # the position would be the same but the direction (tangent) would be different, so we want to have different
+        # vertices in Blender.
+        _, uniq_index, uniq_inverse_index = np.unique(self.vertex_arr[["Position", "Normal"]],
+                                                      return_index=True, return_inverse=True, axis=0)
 
         # Remap index array to indices in the unique vertex positions array
         ind_arr = uniq_inverse_index[self.ind_arr]
         faces = ind_arr.reshape((int(ind_arr.size / 3), 3))
 
-        num_points = len(uniq_points)
+        num_points = len(uniq_index)
 
         # Find which point is the next one connected to each point. The game mesh connects two points with two
         # triangles, one going forward and the next one back. Here, we simplify the repesentation to a list of
@@ -121,6 +127,10 @@ class CableMeshBuilder:
             else:
                 pass
 
+        uniq_pos = self.vertex_arr["Position"][uniq_index]
+        uniq_col = self.vertex_arr["Colour0"][uniq_index]
+        uniq_tc = self.vertex_arr["TexCoord0"][uniq_index]
+
         added = [False] * num_points
         for i in range(num_points):
             if added[i]:
@@ -133,18 +143,19 @@ class CableMeshBuilder:
                 point_idx = prev_map[point_idx]
 
             # Build the list of points of this piece
-            piece_points = [CablePoint(point_idx, Vector(uniq_points[point_idx]))]
+            piece_points = [CablePoint(point_idx, Vector(uniq_pos[point_idx]))]
             added[point_idx] = True
             while next_map[point_idx] != -1:
                 point_idx = next_map[point_idx]
-                piece_points.append(CablePoint(point_idx, Vector(uniq_points[point_idx])))
+                piece_points.append(CablePoint(point_idx, Vector(uniq_pos[point_idx])))
                 added[point_idx] = True
 
+            # Collect attributes for every point
             start = piece_points[0]
             end = piece_points[-1]
             for point in piece_points:
-                r, g, _, a = self.vertex_arr["Colour0"][uniq_index][point.point_index]
-                x, y = self.vertex_arr["TexCoord0"][uniq_index][point.point_index]
+                r, g, _, a = uniq_col[point.point_index]
+                x, y = uniq_tc[point.point_index]
                 D = distance_point_to_line(start.position, end.position, point.position)
 
                 point.phase_offset = (r / 255, g / 255)
