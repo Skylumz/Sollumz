@@ -45,8 +45,7 @@ def export_ybn(obj: bpy.types.Object, filepath: str) -> bool:
 
     bounds = BoundFile()
 
-    composite = create_composite_xml(
-        obj, export_settings.auto_calculate_inertia, export_settings.auto_calculate_volume)
+    composite = create_composite_xml(obj)
     bounds.composite = composite
 
     bounds.write_xml(filepath)
@@ -55,15 +54,12 @@ def export_ybn(obj: bpy.types.Object, filepath: str) -> bool:
 
 def create_composite_xml(
     obj: bpy.types.Object,
-    auto_calc_inertia: bool = False,
-    auto_calc_volume: bool = False,
     out_child_obj_to_index: dict[bpy.types.Object, int] = None
 ) -> BoundComposite:
     composite_xml = BoundComposite()
 
     for child in obj.children:
-        child_xml = create_bound_xml(
-            child, auto_calc_inertia, auto_calc_volume)
+        child_xml = create_bound_xml(child)
 
         if child_xml is None:
             continue
@@ -75,12 +71,12 @@ def create_composite_xml(
     # Calculate extents after children have been created
     bbmin, bbmax = get_composite_extents(composite_xml)
     set_bound_extents(composite_xml, bbmin, bbmax)
-    init_bound_xml(composite_xml, obj, auto_calc_volume=auto_calc_volume)
+    init_bound_xml(composite_xml, obj)
 
     return composite_xml
 
 
-def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, auto_calc_volume: bool = False):
+def create_bound_xml(obj: bpy.types.Object):
     """Create a ``Bound`` instance based on `obj.sollum_type``."""
     if (obj.type == "MESH" and not has_col_mats(obj)) or (obj.type == "EMPTY" and not bound_geom_has_mats(obj)):
         logger.warning(f"'{obj.name}' has no collision materials! Skipping...")
@@ -90,7 +86,7 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
     MAX_MARGIN = 0.04  # maximum margin, only used by some bounds
 
     if obj.sollum_type == SollumType.BOUND_BOX:
-        box_xml = init_bound_child_xml(BoundBox(), obj, auto_calc_inertia, auto_calc_volume)
+        box_xml = init_bound_child_xml(BoundBox(), obj)
 
         box_min = box_xml.box_min
         box_max = box_xml.box_max
@@ -108,23 +104,17 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
         return box_xml
 
     if obj.sollum_type == SollumType.BOUND_DISC:
-        disc_xml = init_bound_child_xml(BoundDisc(), obj, auto_calc_inertia, auto_calc_volume)
-        # scale = get_scale_to_apply_to_bound(obj)
-        # For some reason the get_sphere_radius calculation does not work for bound discs
-        # disc_xml.sphere_radius = scale.x * obj.bound_radius
+        disc_xml = init_bound_child_xml(BoundDisc(), obj)
 
-        # TODO: centroid and mass properties of a DISC
-        # seems to the same as a cylinder but along X-axis instead of Y-axis
+        # Same as a cylinder but along X-axis instead of Y-axis
         bbmin, bbmax = disc_xml.box_min, disc_xml.box_max
         extents = bbmax - bbmin
         radius = extents.y * 0.5
         length = extents.x
 
-        from ..shared.mesh_info import get_mass_properties_of_cylinder
-        # For discs just the radius is used for radius_around_centroid, unlike cylinders.
-        # Mass properties are the same as a cylinder though.
-        centroid, radius_around_centroid = Vector((0.0, 0.0, 0.0)), radius
-        volume, cg, inertia = get_mass_properties_of_cylinder(radius, length)
+        from ..shared.mesh_info import get_centroid_of_disc, get_mass_properties_of_disc
+        centroid, radius_around_centroid = get_centroid_of_disc(radius)
+        volume, cg, inertia = get_mass_properties_of_disc(radius, length)
 
         set_bound_centroid(disc_xml, centroid, radius_around_centroid)
         set_bound_mass_properties(disc_xml, volume, cg, inertia)
@@ -134,7 +124,7 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
         return disc_xml
 
     if obj.sollum_type == SollumType.BOUND_SPHERE:
-        sphere_xml = init_bound_child_xml(BoundSphere(), obj, auto_calc_inertia, auto_calc_volume)
+        sphere_xml = init_bound_child_xml(BoundSphere(), obj)
 
         radius = get_inner_sphere_radius(sphere_xml.box_max, sphere_xml.box_center)
 
@@ -150,7 +140,7 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
         return sphere_xml
 
     if obj.sollum_type == SollumType.BOUND_CYLINDER:
-        cylinder_xml = init_bound_child_xml(BoundCylinder(), obj, auto_calc_inertia, auto_calc_volume)
+        cylinder_xml = init_bound_child_xml(BoundCylinder(), obj)
 
         bbmin, bbmax = cylinder_xml.box_min, cylinder_xml.box_max
         extents = bbmax - bbmin
@@ -170,7 +160,7 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
         return cylinder_xml
 
     if obj.sollum_type == SollumType.BOUND_CAPSULE:
-        capsule_xml = init_bound_child_xml(BoundCapsule(), obj, auto_calc_inertia, auto_calc_volume)
+        capsule_xml = init_bound_child_xml(BoundCapsule(), obj)
 
         bbmin, bbmax = capsule_xml.box_min, capsule_xml.box_max
         extents = bbmax - bbmin
@@ -189,8 +179,7 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
         return capsule_xml
 
     if obj.sollum_type == SollumType.BOUND_GEOMETRY:
-        print(f"{obj=}")
-        geom_xml = create_bound_geometry_xml(obj, auto_calc_inertia, auto_calc_volume)
+        geom_xml = create_bound_geometry_xml(obj)
 
         from ..shared.mesh_info import (
             get_centroid_of_mesh,
@@ -245,7 +234,7 @@ def create_bound_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, aut
         return geom_xml
 
     if obj.sollum_type == SollumType.BOUND_GEOMETRYBVH:
-        return create_bvh_xml(obj, auto_calc_inertia, auto_calc_volume)
+        return create_bvh_xml(obj)
         # TODO: centroid and mass properties of a BVH
         # TODO: margin on BVH
 
@@ -270,7 +259,7 @@ def bound_geom_has_mats(geom_obj: bpy.types.Object):
     return len(mats) > 0
 
 
-def init_bound_child_xml(bound_xml: T_BoundChild, obj: bpy.types.Object, auto_calc_inertia: bool = False, auto_calc_volume: bool = False):
+def init_bound_child_xml(bound_xml: T_BoundChild, obj: bpy.types.Object):
     """Initialize ``bound_xml`` bound child properties from object blender properties."""
     bound_xml.composite_transform = get_composite_transforms(obj).transposed()
 
@@ -283,30 +272,21 @@ def init_bound_child_xml(bound_xml: T_BoundChild, obj: bpy.types.Object, auto_ca
 
     set_bound_extents(bound_xml, bbmin, bbmax)
 
-    bound_xml = init_bound_xml(
-        bound_xml, obj, auto_calc_inertia, auto_calc_volume)
-
+    bound_xml = init_bound_xml(bound_xml, obj)
     set_composite_xml_flags(bound_xml, obj)
     set_bound_col_mat_xml_properties(bound_xml, obj.active_material)
 
     return bound_xml
 
 
-def init_bound_xml(bound_xml: T_Bound, obj: bpy.types.Object, auto_calc_inertia: bool = False, auto_calc_volume: bool = False):
+def init_bound_xml(bound_xml: T_Bound, obj: bpy.types.Object):
     """Initialize ``bound_xml`` bound properties from object blender properties. Extents need to be calculated before inertia and volume."""
     set_bound_properties(bound_xml, obj)
-
-    if auto_calc_inertia:
-        bound_xml.inertia = calculate_inertia(bound_xml.box_min, bound_xml.box_max)
-
-    if auto_calc_volume:
-        bound_xml.volume = calculate_volume(bound_xml.box_min, bound_xml.box_max)
-
     return bound_xml
 
 
-def create_bound_geometry_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, auto_calc_volume: bool = False):
-    geom_xml = init_bound_child_xml(BoundGeometry(), obj, auto_calc_inertia, auto_calc_volume)
+def create_bound_geometry_xml(obj: bpy.types.Object):
+    geom_xml = init_bound_child_xml(BoundGeometry(), obj)
     geom_xml.material_index = 0
 
     create_bound_geom_xml_data(geom_xml, obj)
@@ -314,8 +294,8 @@ def create_bound_geometry_xml(obj: bpy.types.Object, auto_calc_inertia: bool = F
     return geom_xml
 
 
-def create_bvh_xml(obj: bpy.types.Object, auto_calc_inertia: bool = False, auto_calc_volume: bool = False):
-    geom_xml = init_bound_child_xml(BoundGeometryBVH(), obj, auto_calc_inertia, auto_calc_volume)
+def create_bvh_xml(obj: bpy.types.Object):
+    geom_xml = init_bound_child_xml(BoundGeometryBVH(), obj)
     geom_xml.material_index = 0
 
     create_bound_geom_xml_data(geom_xml, obj)

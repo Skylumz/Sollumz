@@ -36,6 +36,21 @@ def get_mass_properties_of_cylinder(radius: float, length: float):
     return volume, cg, inertia
 
 
+def get_centroid_of_disc(radius: float):
+    # Assume a disc placed at origin
+    centroid = Vector((0.0, 0.0, 0.0))
+
+    # For discs just the radius is used for radius_around_centroid, unlike cylinders
+    radius_around_centroid = radius
+
+    return centroid, radius_around_centroid
+
+
+def get_mass_properties_of_disc(radius: float, length: float):
+    # Disc mass properties are the same as a cylinder
+    return get_mass_properties_of_cylinder(radius, length)
+
+
 def get_centroid_of_capsule(radius: float, length: float):
     half_length = length * 0.5
 
@@ -145,6 +160,7 @@ def calc_face_projected_areas(v0, v1, v2):
 
     return sx, sy, sz
 
+
 def get_mass_properties_of_mesh(mesh_vertices, mesh_faces):
     triangles = mesh_vertices[mesh_faces]
 
@@ -213,6 +229,7 @@ def get_mass_properties_of_mesh(mesh_vertices, mesh_faces):
     # print(f"cg={cg.x:.5f}, {cg.y:.5f}, {cg.z:.5f}")
     # print(f"inertia={inertia.x:.5f}, {inertia.y:.5f}, {inertia.z:.5f}")
     return volume, cg, inertia
+
 
 def get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces):
     """
