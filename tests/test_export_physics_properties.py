@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from numpy.testing import assert_allclose
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 from pathlib import Path
 from functools import cache
 from xml.etree import ElementTree as ET
@@ -51,6 +51,10 @@ class YftTestCase(NamedTuple):
         child_key_str = "-".join(map(str, self.child_key))
         return f"{self.input_path.stem}-{child_key_str}"
 
+    @property
+    def is_root_composite(self) -> bool:
+        return self.child_key[0] == "$root_composite"
+
 
 if is_tmp_dir_available():  # need the temp directory to store exported .yfts
 
@@ -84,12 +88,15 @@ if is_tmp_dir_available():  # need the temp directory to store exported .yfts
             output_tree.parse(out_path)
             output_root = output_tree.getroot()
 
+            XPATH_BOUND_COMPOSITE = "./Physics/LOD1/Archetype/Bounds"
             XPATH_BOUNDS = "./Physics/LOD1/Archetype/Bounds/Children/Item"
             XPATH_GROUPS = "./Physics/LOD1/Groups/Item"
             XPATH_CHILDREN = "./Physics/LOD1/Children/Item"
             XPATH_LINK_ATTACHMENTS = "./Physics/LOD1/Transforms/Item"
 
+            input_composite = input_root.find(XPATH_BOUND_COMPOSITE)
             input_bounds = input_root.findall(XPATH_BOUNDS)
+            output_composite = input_root.find(XPATH_BOUND_COMPOSITE)
             output_bounds = output_root.findall(XPATH_BOUNDS)
 
             input_groups = input_root.findall(XPATH_GROUPS)
@@ -137,6 +144,20 @@ if is_tmp_dir_available():  # need the temp directory to store exported .yfts
                     output_child=output_children[output_child_index],
                     output_link_attachment=output_link_attachments[output_child_index],
                 ))
+
+            test_cases.append(YftTestCase(
+                input_path=yft_path,
+                input_root=input_root,
+                output_path=out_path,
+                output_root=output_root,
+                child_key=("$root_composite", -1, "Composite"),
+                input_bound=input_composite,
+                input_child=None,
+                input_link_attachment=None,
+                output_bound=output_composite,
+                output_child=None,
+                output_link_attachment=None,
+            ))
 
             file_test_cases.append(YftFileTestCase(
                 input_path=yft_path,
@@ -270,6 +291,9 @@ if is_tmp_dir_available():  # need the temp directory to store exported .yfts
         )
 
     def test_yft_link_attachment(yft_test_case: YftTestCase):
+        if yft_test_case.is_root_composite:
+            return
+
         input_link_attachment = yft_test_case.input_link_attachment
         output_link_attachment = yft_test_case.output_link_attachment
 
