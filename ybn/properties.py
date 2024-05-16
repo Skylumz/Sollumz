@@ -123,11 +123,6 @@ class BoundFlags(bpy.types.PropertyGroup):
         name="MAP DEEP SURFACE", default=False)
 
 
-class BoundProperties(bpy.types.PropertyGroup):
-    inertia: bpy.props.FloatVectorProperty(name="Inertia")
-    volume: bpy.props.FloatProperty(name="Volume", precision=3)
-
-
 class CollisionMaterial(bpy.types.PropertyGroup):
     index: bpy.props.IntProperty("Index")
     name: bpy.props.StringProperty("Name")
@@ -210,8 +205,6 @@ def update_bounds(self, context):
 
 
 def register():
-    bpy.types.Object.bound_properties = bpy.props.PointerProperty(
-        type=BoundProperties)
     bpy.types.Object.margin = bpy.props.FloatProperty(
         name="Margin", precision=3, update=update_bounds, min=0, default=0.04)
     bpy.types.Object.bound_radius = bpy.props.FloatProperty(
@@ -221,11 +214,8 @@ def register():
     bpy.types.Object.bound_dimensions = bpy.props.FloatVectorProperty(
         name="Extents", precision=3, min=0, update=update_bounds, subtype="XYZ")
 
-    # nest these in object.bound_properties ? is it possible#
-    bpy.types.Object.composite_flags1 = bpy.props.PointerProperty(
-        type=BoundFlags)
-    bpy.types.Object.composite_flags2 = bpy.props.PointerProperty(
-        type=BoundFlags)
+    bpy.types.Object.composite_flags1 = bpy.props.PointerProperty(type=BoundFlags)
+    bpy.types.Object.composite_flags2 = bpy.props.PointerProperty(type=BoundFlags)
 
     bpy.types.Scene.collision_material_index = bpy.props.IntProperty(
         name="Material Index")
@@ -314,7 +304,6 @@ def register():
 
 
 def unregister():
-    del bpy.types.Object.bound_properties
     del bpy.types.Object.margin
     del bpy.types.Object.bound_radius
     del bpy.types.Object.bound_length

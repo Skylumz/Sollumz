@@ -276,32 +276,30 @@ def get_bound_center_from_bounds(bbmin: Vector, bbmax: Vector):
     return (bbmin + bbmax) * 0.5
 
 
-def get_sphere_radius(bbmax, bbcenter):
+def get_sphere_radius(bbmin: Vector, bbmax: Vector) -> float:
     """Gets the radius of the sphere that encloses the bounding box."""
+    bbcenter = get_bound_center_from_bounds(bbmin, bbmax)
     return (bbmax - bbcenter).length
 
 
-def get_inner_sphere_radius(bbmax, bbcenter):
+def get_inner_sphere_radius(bbmin: Vector, bbmax: Vector) -> float:
     """Gets the radius of the sphere that fits inside the bounding box."""
+    bbcenter = get_bound_center_from_bounds(bbmin, bbmax)
     return min(bbmax - bbcenter)
 
 
-def get_dimensions(bbmin, bbmax):
-    x = bbmax.x - bbmin.x
-    y = bbmax.y - bbmin.y
-    z = bbmax.z - bbmin.z
-
-    return x, y, z
+def get_dimensions(bbmin: Vector, bbmax: Vector) -> Vector:
+    return bbmax - bbmin
 
 
-def calculate_volume(bbmin: Vector, bbmax: Vector):
+def calculate_volume(bbmin: Vector, bbmax: Vector) -> float:
     """Calculates volume using box min and max. (Very rough approximation)"""
     x, y, z = get_dimensions(bbmin, bbmax)
 
     return x * y * z
 
 
-def calculate_inertia(bbmin: Vector, bbmax: Vector):
+def calculate_inertia(bbmin: Vector, bbmax: Vector) -> Vector:
     """Calculate moment of inertia of a solid cuboid. Returns a Vector
     representing the diagonal of the inertia tensor matrix."""
     x, y, z = get_dimensions(bbmin, bbmax)

@@ -1,5 +1,5 @@
 import bpy
-from .properties import BoundFlags, CollisionProperties, CollisionMatFlags, BoundProperties
+from .properties import BoundFlags, CollisionProperties, CollisionMatFlags
 from ..sollumz_properties import MaterialType, SollumType, BOUND_TYPES, BOUND_POLYGON_TYPES
 from .collision_materials import collisionmats
 from ..sollumz_ui import SOLLUMZ_PT_OBJECT_PANEL, SOLLUMZ_PT_MAT_PANEL
@@ -61,15 +61,8 @@ class SOLLUMZ_PT_BOUND_PROPERTIES_PANEL(bpy.types.Panel):
         return context.active_object is not None and context.active_object.sollum_type in BOUND_TYPES
 
     def draw(self, context):
-        layout = self.layout
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
-        obj = context.active_object
-
-        grid = layout.grid_flow(columns=2, row_major=True)
-        grid.prop(obj.bound_properties, "inertia")
-        grid.prop(obj.bound_properties, "volume")
+        # nothing here currently
+        pass
 
 
 class SOLLUMZ_PT_BOUND_SHAPE_PANEL(bpy.types.Panel):

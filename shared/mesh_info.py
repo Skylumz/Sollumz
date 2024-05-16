@@ -136,8 +136,8 @@ def get_mass_properties_of_box(box_min: Vector, box_max: Vector):
 
 
 def get_centroid_of_mesh(mesh_vertices):
-    from .miniball import get_bounding_ball
-    C, r2 = get_bounding_ball(mesh_vertices)
+    from . import miniball
+    C, r2 = miniball.get_bounding_ball(mesh_vertices)
     centroid = Vector(C)
     radius_around_centroid = np.sqrt(r2)
     return centroid, radius_around_centroid
@@ -224,10 +224,6 @@ def get_mass_properties_of_mesh(mesh_vertices, mesh_faces):
     iyy = b / volume
     izz = c / volume
     inertia = Vector((ixx, iyy, izz))
-    # print("> get_mass_properties_of_mesh_shell")
-    # print(f"{volume=:.5f}")
-    # print(f"cg={cg.x:.5f}, {cg.y:.5f}, {cg.z:.5f}")
-    # print(f"inertia={inertia.x:.5f}, {inertia.y:.5f}, {inertia.z:.5f}")
     return volume, cg, inertia
 
 

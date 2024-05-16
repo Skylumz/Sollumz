@@ -32,7 +32,6 @@ from .ymap.ymapimport import import_ymap
 from .ymap.ymapexport import export_ymap
 from .tools.blenderhelper import add_child_of_bone_constraint, get_child_of_pose_bone, get_terrain_texture_brush, remove_number_suffix, create_blender_object, join_objects
 from .tools.ytyphelper import ytyp_from_objects
-from .ybn.properties import BoundProperties
 from .ybn.properties import BoundFlags
 
 from . import logger
@@ -730,7 +729,6 @@ class SOLLUMZ_OT_debug_migrate_bound_geometries(bpy.types.Operator):
             joined_obj.name = obj.name
             joined_obj.parent = obj.parent
 
-            self.set_bound_geometry_properties(obj, joined_obj)
             self.set_composite_flags(obj, joined_obj)
 
             joined_obj.matrix_basis = obj.matrix_basis
@@ -744,11 +742,6 @@ class SOLLUMZ_OT_debug_migrate_bound_geometries(bpy.types.Operator):
             bpy.data.objects.remove(obj)
 
         return {"FINISHED"}
-
-    def set_bound_geometry_properties(self, old_obj: bpy.types.Object, new_obj: bpy.types.Object):
-        for prop_name in BoundProperties.__annotations__.keys():
-            value = getattr(old_obj.bound_properties, prop_name)
-            setattr(new_obj.bound_properties, prop_name, value)
 
     def set_composite_flags(self, old_obj: bpy.types.Object, new_obj: bpy.types.Object):
         def set_flags(prop_name: str):

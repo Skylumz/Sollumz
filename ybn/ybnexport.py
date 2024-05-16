@@ -25,11 +25,13 @@ from ..cwxml.bound import (
     Material
 )
 from ..tools.utils import get_max_vector_list, get_min_vector_list, get_matrix_without_scale
-from ..tools.meshhelper import (get_bound_center_from_bounds, calculate_volume,
-                                calculate_inertia, get_corners_from_extents, get_sphere_radius, get_inner_sphere_radius,
-                                get_combined_bound_box)
+from ..tools.meshhelper import (
+    get_bound_center_from_bounds,
+    get_corners_from_extents,
+    get_inner_sphere_radius,
+    get_combined_bound_box
+)
 from ..sollumz_properties import MaterialType, SOLLUMZ_UI_NAMES, SollumType, BOUND_POLYGON_TYPES
-from ..sollumz_preferences import get_export_settings
 from .. import logger
 from .properties import CollisionMatFlags, get_collision_mat_raw_flags, BoundFlags
 
@@ -41,13 +43,8 @@ MAX_VERTICES = 32767
 
 
 def export_ybn(obj: bpy.types.Object, filepath: str) -> bool:
-    export_settings = get_export_settings()
-
     bounds = BoundFile()
-
-    composite = create_composite_xml(obj)
-    bounds.composite = composite
-
+    bounds.composite = create_composite_xml(obj)
     bounds.write_xml(filepath)
     return True
 
@@ -58,6 +55,9 @@ def create_composite_xml(
 ) -> BoundComposite:
     composite_xml = BoundComposite()
 
+    centroid = Vector()
+    cg = Vector()
+    volume = 0.0
     for child in obj.children:
         child_xml = create_bound_xml(child)
 
@@ -68,10 +68,28 @@ def create_composite_xml(
             out_child_obj_to_index[child] = len(composite_xml.children)
         composite_xml.children.append(child_xml)
 
+        child_cg = child_xml.composite_transform @ child_xml.sphere_center
+        child_centroid = child_xml.composite_transform @ child_xml.box_center
+        child_volume = child_xml.volume
+
+        volume += child_volume
+        cg += child_cg * child_volume  # uniform density so volume == mass
+        centroid += child_centroid
+
+    cg /= volume
+    centroid /= len(composite_xml.children)
+
     # Calculate extents after children have been created
     bbmin, bbmax = get_composite_extents(composite_xml)
     set_bound_extents(composite_xml, bbmin, bbmax)
-    init_bound_xml(composite_xml, obj)
+
+    radius_around_centroid = (bbmax - centroid).length
+
+    inertia = Vector((1.0, 1.0, 1.0)) # composite inertia doesn't need to be calculated
+    set_bound_centroid(composite_xml, centroid, radius_around_centroid)
+    set_bound_mass_properties(composite_xml, volume, cg, inertia)
+
+    composite_xml.margin = 0.0 # composite margin always 0
 
     return composite_xml
 
@@ -81,9 +99,6 @@ def create_bound_xml(obj: bpy.types.Object):
     if (obj.type == "MESH" and not has_col_mats(obj)) or (obj.type == "EMPTY" and not bound_geom_has_mats(obj)):
         logger.warning(f"'{obj.name}' has no collision materials! Skipping...")
         return
-
-    # TODO: auto calculate margin (user might need to customize, need to check if any game assets do this)
-    MAX_MARGIN = 0.04  # maximum margin, only used by some bounds
 
     if obj.sollum_type == SollumType.BOUND_BOX:
         box_xml = init_bound_child_xml(BoundBox(), obj)
@@ -99,7 +114,7 @@ def create_bound_xml(obj: bpy.types.Object):
         set_bound_centroid(box_xml, centroid, radius_around_centroid)
         set_bound_mass_properties(box_xml, volume, cg, inertia)
 
-        box_xml.margin = min(MAX_MARGIN, min(extents) / 8)  # in boxes the margin equals the smallest side divided by 8
+        box_xml.margin = min(0.04, min(extents) / 8)  # in boxes the margin equals the smallest side divided by 8
 
         return box_xml
 
@@ -126,7 +141,8 @@ def create_bound_xml(obj: bpy.types.Object):
     if obj.sollum_type == SollumType.BOUND_SPHERE:
         sphere_xml = init_bound_child_xml(BoundSphere(), obj)
 
-        radius = get_inner_sphere_radius(sphere_xml.box_max, sphere_xml.box_center)
+        bbmin, bbmax = sphere_xml.box_min, sphere_xml.box_max
+        radius = get_inner_sphere_radius(bbmin, bbmax)
 
         from ..shared.mesh_info import get_centroid_of_sphere, get_mass_properties_of_sphere
         centroid, radius_around_centroid = get_centroid_of_sphere(radius)
@@ -155,7 +171,7 @@ def create_bound_xml(obj: bpy.types.Object):
         set_bound_mass_properties(cylinder_xml, volume, cg, inertia)
 
         # in cylinders the margin equals 1/4 the minimum between radius and half-length
-        cylinder_xml.margin = min(MAX_MARGIN, min(radius, length * 0.5) / 4)
+        cylinder_xml.margin = min(0.04, min(radius, length * 0.5) / 4)
 
         return cylinder_xml
 
@@ -181,42 +197,18 @@ def create_bound_xml(obj: bpy.types.Object):
     if obj.sollum_type == SollumType.BOUND_GEOMETRY:
         geom_xml = create_bound_geometry_xml(obj)
 
-        from ..shared.mesh_info import (
-            get_centroid_of_mesh,
-            get_mass_properties_of_mesh_solid,
-            get_mass_properties_of_mesh_shell,
-            get_mass_properties_of_mesh,
-            is_mesh_solid
-        )
-
         mesh_vertices = np.array([(v + geom_xml.geometry_center) for v in geom_xml.vertices])
         mesh_faces = []
         for poly in geom_xml.polygons:
             mesh_faces.append([poly.v1, poly.v2, poly.v3])
         mesh_faces = np.array(mesh_faces)
 
-        # is_solid = is_mesh_solid(mesh_vertices, mesh_faces)
-        # centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
-        # if is_solid:
-        #     _, _, _ = get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces)
-        #     volume, cg, inertia = get_mass_properties_of_mesh_solid(mesh_vertices, mesh_faces)
-        # else:
-        #     # TODO: mass properties for non-solid meshes
-        #     volume, cg, inertia = get_mass_properties_of_mesh_shell(mesh_vertices, mesh_faces)
-        #     _, _, _ = get_mass_properties_of_mesh_solid(mesh_vertices, mesh_faces)
-        #     # volume = geom_xml.volume
-        #     # cg = geom_xml.sphere_center
-        #     # inertia = geom_xml.inertia
-
+        from ..shared.mesh_info import get_centroid_of_mesh, get_mass_properties_of_mesh
         centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
         volume, cg, inertia = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
 
-
-        geom_xml.box_center = centroid
-        geom_xml.sphere_radius = radius_around_centroid
-        geom_xml.sphere_center = cg
-        geom_xml.volume = volume
-        geom_xml.inertia = inertia
+        set_bound_centroid(geom_xml, centroid, radius_around_centroid)
+        set_bound_mass_properties(geom_xml, volume, cg, inertia)
 
         if False:
             import stl
@@ -229,14 +221,36 @@ def create_bound_xml(obj: bpy.types.Object):
 
         # TODO: margin on Geometry (we might need to calculate shrunk vertices to get the correct value... or add it CW, and actually fix the shrunk vertices algorithm)
         # TODO: need to grow bounding-box min/max by margin
-        geom_xml.margin = 0.025
+        geom_xml.margin = 0.04
 
         return geom_xml
 
     if obj.sollum_type == SollumType.BOUND_GEOMETRYBVH:
-        return create_bvh_xml(obj)
-        # TODO: centroid and mass properties of a BVH
-        # TODO: margin on BVH
+        bvh_xml = create_bvh_xml(obj)
+
+        # TODO: maybe we should iterate the primitives and add some more vertices depending on primitive type? sphere, cylinder, etc
+        #       Or after, grow radius_around_centroid and bounding box from the primitives
+        mesh_vertices = np.array([(v + bvh_xml.geometry_center) for v in bvh_xml.vertices])
+        mesh_faces = []
+        for poly in bvh_xml.polygons:
+            if not isinstance(poly, PolyTriangle):
+                continue
+            mesh_faces.append([poly.v1, poly.v2, poly.v3])
+        mesh_faces = np.array(mesh_faces)
+
+        from ..shared.mesh_info import get_centroid_of_mesh, get_mass_properties_of_mesh
+        centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
+        cg = centroid # TODO: CG of BVH? doesn't seem to match the centroid
+        _, cg, _ = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
+        # BVHs don't need to calculate the volume or inertia
+        volume = 1.0
+        inertia = Vector((1.0, 1.0, 1.0))
+
+        set_bound_centroid(bvh_xml, centroid, radius_around_centroid)
+        set_bound_mass_properties(bvh_xml, volume, cg, inertia)
+
+        bvh_xml.margin = 0.04 # BVHs always have this margin
+        return bvh_xml
 
 
 def has_col_mats(obj: bpy.types.Object):
@@ -272,16 +286,9 @@ def init_bound_child_xml(bound_xml: T_BoundChild, obj: bpy.types.Object):
 
     set_bound_extents(bound_xml, bbmin, bbmax)
 
-    bound_xml = init_bound_xml(bound_xml, obj)
     set_composite_xml_flags(bound_xml, obj)
     set_bound_col_mat_xml_properties(bound_xml, obj.active_material)
 
-    return bound_xml
-
-
-def init_bound_xml(bound_xml: T_Bound, obj: bpy.types.Object):
-    """Initialize ``bound_xml`` bound properties from object blender properties. Extents need to be calculated before inertia and volume."""
-    set_bound_properties(bound_xml, obj)
     return bound_xml
 
 
@@ -624,22 +631,9 @@ def set_col_mat_xml_properties(mat_xml: Material, mat: bpy.types.Material):
         mat_xml.flags.append("NONE")
 
 
-def set_bound_properties(bound_xml: Bound, obj: bpy.types.Object):
-    bound_xml.volume = obj.bound_properties.volume
-    bound_xml.inertia = Vector(obj.bound_properties.inertia)
-
-
 def set_bound_extents(bound_xml: Bound, bbmin: Vector, bbmax: Vector):
     bound_xml.box_max = bbmax
     bound_xml.box_min = bbmin
-
-    bound_xml.box_center = get_bound_center_from_bounds(bound_xml.box_min, bound_xml.box_max)
-    bound_xml.sphere_center = bound_xml.box_center
-    bound_xml.sphere_radius = get_sphere_radius(bound_xml.box_max, bound_xml.box_center)
-
-    # TODO: properly calculate box_center (aka "centroid"), sphere_center (aka "center of gravity") and sphere_radius (aka "radius around centroid")
-    # This affects later calculations of the link attachments centers of gravity. Should improve physics behaviour in-game too, but the difference might
-    # too small to be noticeable. Still would be nice to have these calculated properly.
 
 
 def get_bound_extents(obj: bpy.types.Object):

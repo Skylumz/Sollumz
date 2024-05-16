@@ -420,9 +420,7 @@ def get_bound_geom_mesh_data(
 
 
 def set_bound_properties(bound_xml: Bound, bound_obj: bpy.types.Object):
-    bound_obj.bound_properties.inertia = bound_xml.inertia
     bound_obj.margin = bound_xml.margin
-    bound_obj.bound_properties.volume = bound_xml.volume
 
 
 def set_bound_child_properties(bound_xml: BoundChild, bound_obj: bpy.types.Object):

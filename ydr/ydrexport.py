@@ -884,10 +884,8 @@ def set_drawable_xml_extents(drawable_xml: Drawable):
     bbmin = get_min_vector_list(mins)
     bbmax = get_max_vector_list(maxes)
 
-    drawable_xml.bounding_sphere_center = get_bound_center_from_bounds(
-        bbmin, bbmax)
-    drawable_xml.bounding_sphere_radius = get_sphere_radius(
-        bbmax, drawable_xml.bounding_sphere_center)
+    drawable_xml.bounding_sphere_center = get_bound_center_from_bounds(bbmin, bbmax)
+    drawable_xml.bounding_sphere_radius = get_sphere_radius(bbmin, bbmax)
     drawable_xml.bounding_box_min = bbmin
     drawable_xml.bounding_box_max = bbmax
 
