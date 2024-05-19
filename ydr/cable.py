@@ -2,6 +2,7 @@ from bpy.types import (
     Object,
     Mesh,
 )
+from bmesh.types import BMesh
 from enum import Enum
 from typing import Optional
 import numpy as np
@@ -15,12 +16,18 @@ class CableAttr(str, Enum):
     DIFFUSE_FACTOR = ".cable.diffuse_factor"
     UM_SCALE = ".cable.um_scale"
     PHASE_OFFSET = ".cable.phase_offset"
+    # Blender materials are set on the mesh faces, which cable meshes don't have any of. We need an
+    # additional attribute on the vertices to support multiple materials on the same drawable model, since some
+    # vanilla models are like that (e.g. v_35_cables1.ydr)
+    MATERIAL_INDEX = ".cable.material_index"
 
     @property
     def type(self):
         match self:
             case CableAttr.PHASE_OFFSET:
                 return "FLOAT_VECTOR" # actually should be FLOAT2, but BMesh API doesn't expose those values
+            case CableAttr.MATERIAL_INDEX:
+                return "INT"
             case _:
                 return "FLOAT"
 
@@ -39,6 +46,8 @@ class CableAttr(str, Enum):
                 return 1.0
             case CableAttr.PHASE_OFFSET:
                 return Vector((0.0, 0.0, 0.0))
+            case CableAttr.MATERIAL_INDEX:
+                return 0
             case _:
                 assert False, f"Default value not set for cable attribute '{self}'"
 
@@ -53,6 +62,8 @@ class CableAttr(str, Enum):
                 return "Micromovements Scale"
             case CableAttr.PHASE_OFFSET:
                 return "Phase Offset"
+            case CableAttr.MATERIAL_INDEX:
+                return "Material Index"
             case _:
                 assert False, f"Label not set for cable attribute '{self}'"
 
@@ -67,6 +78,8 @@ class CableAttr(str, Enum):
                 return "Determines how much the cable moves: 0 = no micromovements"
             case CableAttr.PHASE_OFFSET:
                 return "Applies an offset to the simulation phase. Used to prevent movement of different cables from synchronizing"
+            case CableAttr.MATERIAL_INDEX:
+                return "Material slot index"
             case _:
                 assert False, f"Label not set for cloth attribute '{self}'"
 
@@ -100,6 +113,15 @@ def mesh_get_cable_attribute_values(mesh: Mesh, attr: CableAttr) -> np.ndarray:
     return values
 
 
+def bmesh_get_cable_attribute_values(mesh: BMesh, attr: CableAttr) -> np.ndarray:
+            #
+            # attr_layers = [(edit_mesh.verts.layers.float_vector if attr.type == "FLOAT_VECTOR" else edit_mesh.verts.layers.int if attr.type == "INT" else edit_mesh.verts.layers.float).get(attr, None) for attr in attrs]
+            # for v in edit_mesh.verts:
+            #     attr_values = [attr.default_value if attr_layers[i] is None else v[attr_layers[i]]
+            #                    for i, attr in enumerate(attrs)]
+    pass
+
+
 def is_cable_mesh_object(mesh_obj: Optional[Object]) -> bool:
     """Gets whether the object has a valid cable mesh."""
     if mesh_obj is None:
@@ -120,6 +142,6 @@ def is_cable_mesh(mesh: Optional[Mesh]) -> bool:
         len(mesh.polygons) == 0 and
         len(mesh.vertices) > 0 and
         len(mesh.edges) > 0 and
-        len(mesh.materials) == 1 and
-        mesh.materials[0].shader_properties.filename == CABLE_SHADER_NAME
+        len(mesh.materials) > 0 and
+        all(m.shader_properties.filename == CABLE_SHADER_NAME for m in mesh.materials)
     )

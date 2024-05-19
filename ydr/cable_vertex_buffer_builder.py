@@ -18,16 +18,18 @@ class CableVertexBufferBuilder:
         assert is_cable_mesh(mesh), "Non-cable mesh passed to CableVertexBufferBuilder"
         self.mesh = mesh
 
-    def build(self) -> NDArray:
+    def build(self) -> tuple[NDArray, NDArray]:
         verts_position = np.empty((len(self.mesh.vertices), 3), dtype=np.float32)
         self.mesh.attributes["position"].data.foreach_get("vector", verts_position.ravel())
         verts_radius = mesh_get_cable_attribute_values(self.mesh, CableAttr.RADIUS)
         verts_diffuse_factor = mesh_get_cable_attribute_values(self.mesh, CableAttr.DIFFUSE_FACTOR)
         verts_um_scale = mesh_get_cable_attribute_values(self.mesh, CableAttr.UM_SCALE)
         verts_phase_offset = mesh_get_cable_attribute_values(self.mesh, CableAttr.PHASE_OFFSET)
+        verts_material = mesh_get_cable_attribute_values(self.mesh, CableAttr.MATERIAL_INDEX)
 
         verts_phase_offset.clip(0.0, 1.0, out=verts_phase_offset)
         verts_diffuse_factor.clip(0.0, 1.0, out=verts_diffuse_factor)
+        verts_material.clip(0, len(self.mesh.materials) - 1, out=verts_material)
 
         pieces = edge_loops_from_edges(self.mesh)
 
@@ -48,6 +50,7 @@ class CableVertexBufferBuilder:
         struct_dtype = [VertexBuffer.VERT_ATTR_DTYPES[attr_name]
                         for attr_name in ("Position", "Normal", "Colour0", "TexCoord0")]
         output_vertex_arr = np.empty(num_output_verts, dtype=struct_dtype)
+        output_vertex_materials_arr = np.empty(num_output_verts, dtype=np.int32)
         v_pos = output_vertex_arr["Position"]
         v_tan = output_vertex_arr["Normal"]
         v_col = output_vertex_arr["Colour0"]
@@ -105,6 +108,7 @@ class CableVertexBufferBuilder:
                 v_col[out_vi][3] = int(verts_diffuse_factor[v0] * 255)
                 v_tex[out_vi][0] = -verts_radius[v0]  # negative
                 v_tex[out_vi][1] = distances[i0] * verts_um_scale[v0]
+                output_vertex_materials_arr[out_vi] = verts_material[v0]
 
                 v_pos[out_vi + 1] = verts_position[v1]
                 v_tan[out_vi + 1] = tangents[i1]
@@ -114,17 +118,22 @@ class CableVertexBufferBuilder:
                 v_col[out_vi + 1][3] = int(verts_diffuse_factor[v1] * 255)
                 v_tex[out_vi + 1][0] = -verts_radius[v1]  # negative
                 v_tex[out_vi + 1][1] = distances[i1] * verts_um_scale[v1]
+                output_vertex_materials_arr[out_vi + 1] = verts_material[v1]
 
                 #   same as first vertex but with positive radius
                 output_vertex_arr[out_vi + 2] = output_vertex_arr[out_vi]
                 v_tex[out_vi + 2][0] = verts_radius[v0]  # positive
+                output_vertex_materials_arr[out_vi + 2] = verts_material[v0]
 
                 # Second triangle (v0 +r -> v1 -r -> v1 +r)
                 output_vertex_arr[out_vi + 3] = output_vertex_arr[out_vi + 2]
                 output_vertex_arr[out_vi + 4] = output_vertex_arr[out_vi + 1]
                 output_vertex_arr[out_vi + 5] = output_vertex_arr[out_vi + 1]
                 v_tex[out_vi + 5][0] = verts_radius[v1]  # positive
+                output_vertex_materials_arr[out_vi + 3] = output_vertex_materials_arr[out_vi + 2]
+                output_vertex_materials_arr[out_vi + 4] = output_vertex_materials_arr[out_vi + 1]
+                output_vertex_materials_arr[out_vi + 5] = output_vertex_materials_arr[out_vi + 1]
 
                 out_vi += 6
 
-        return output_vertex_arr
+        return output_vertex_arr, output_vertex_materials_arr

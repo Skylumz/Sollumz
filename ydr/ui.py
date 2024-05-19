@@ -794,3 +794,7 @@ class SOLLUMZ_PT_CABLE_TOOLS_PANEL(bpy.types.Panel):
         row = layout.row(align=True)
         op = row.operator(cable_ops.SOLLUMZ_OT_cable_randomize_phase_offset.bl_idname, text="Randomize")
 
+        row = layout.row(align=True)
+        row.label(text=CableAttr.MATERIAL_INDEX.label)
+        _visible_icon_prop(row, scene, "sz_ui_cable_material_index_visualize")
+

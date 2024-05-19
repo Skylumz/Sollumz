@@ -246,22 +246,28 @@ def create_geometries_xml(mesh_eval: bpy.types.Mesh, materials: list[bpy.types.M
             f"Could not create geometries for Drawable Model '{mesh_eval.original.name}': Mesh has no Sollumz materials!")
         return []
 
-    geometries: list[Geometry] = []
-
     if is_cable:
-        vert_buffer = CableVertexBufferBuilder(mesh_eval).build()
-        vert_buffer, ind_buffer = dedupe_and_get_indices(vert_buffer)
+        cable_total_vert_buffer, cable_vert_materials = CableVertexBufferBuilder(mesh_eval).build()
+        cable_geometries = []
+        for cable_material_index in range(len(mesh_eval.materials)):
+            cable_vert_buffer = cable_total_vert_buffer[cable_vert_materials == cable_material_index]
+            cable_vert_buffer, cable_ind_buffer = dedupe_and_get_indices(cable_vert_buffer)
 
-        geom_xml = Geometry()
-        geom_xml.bounding_box_max, geom_xml.bounding_box_min = get_geom_extents(vert_buffer["Position"])
-        geom_xml.shader_index = 0  # TODO: actually get cable material index
-        geom_xml.vertex_buffer.data = vert_buffer
-        geom_xml.index_buffer.data = ind_buffer
-        geometries.append(geom_xml)
-        return geometries
+            cable_material = mesh_eval.materials[cable_material_index].original
+            cable_material_index_in_drawable = materials.index(cable_material)
+
+            geom_xml = Geometry()
+            geom_xml.bounding_box_max, geom_xml.bounding_box_min = get_geom_extents(cable_vert_buffer["Position"])
+            geom_xml.shader_index = cable_material_index_in_drawable
+            geom_xml.vertex_buffer.data = cable_vert_buffer
+            geom_xml.index_buffer.data = cable_ind_buffer
+            cable_geometries.append(geom_xml)
+
+        return cable_geometries
 
     loop_inds_by_mat = get_loop_inds_by_material(mesh_eval, materials)
 
+    geometries: list[Geometry] = []
 
     bone_by_vgroup = get_bone_by_vgroup(
         vertex_groups, bones) if bones and vertex_groups else None

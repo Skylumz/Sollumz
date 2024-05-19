@@ -17,6 +17,7 @@ class CablePoint:
     diffuse_factor: float = CableAttr.DIFFUSE_FACTOR.default_value
     um_scale: float = CableAttr.UM_SCALE.default_value
     phase_offset: (float, float) = CableAttr.PHASE_OFFSET.default_value
+    material_index: int = 0
 
     def __init__(self, point_index: int, position: Vector):
         self.point_index = point_index
@@ -44,6 +45,7 @@ class CableMeshBuilder:
 
         self.name = name
         self.materials = drawable_mats
+        self.has_multiple_materials = len(drawable_mats) > 1
 
     def build(self) -> Mesh:
         mesh = bpy.data.meshes.new(self.name)
@@ -53,6 +55,7 @@ class CableMeshBuilder:
         verts_diffuse_factor = []
         verts_um_scale = []
         verts_phase_offset = []
+        verts_material_index = []
         edges = []
 
         pieces = self._gather_pieces()
@@ -66,11 +69,13 @@ class CableMeshBuilder:
             verts_um_scale.extend(p.um_scale for p in piece.points)
             # NOTE: phase offset actually stored as FLOAT_VECTOR
             verts_phase_offset.extend((p.phase_offset[0], p.phase_offset[1], 0.0) for p in piece.points)
+            if self.has_multiple_materials:
+                verts_material_index.extend(p.material_index for p in piece.points)
             edges.extend(zip(range(first_idx, last_idx), range(first_idx + 1, last_idx + 1)))
 
         mesh.from_pydata(verts, edges, [])
 
-        self._create_mesh_materials(mesh)
+        self._create_mesh_materials(mesh, verts_material_index)
 
         mesh_add_cable_attribute(mesh, CableAttr.RADIUS)
         mesh_add_cable_attribute(mesh, CableAttr.DIFFUSE_FACTOR)
@@ -83,7 +88,12 @@ class CableMeshBuilder:
 
         return mesh
 
-    def _create_mesh_materials(self, mesh: bpy.types.Mesh):
+    def _create_mesh_materials(self, mesh: bpy.types.Mesh, verts_material_index: list[int]):
+        if not self.has_multiple_materials:
+            # Just a single material, 
+            mesh.materials.append(self.materials[0])
+            return
+
         drawable_mat_inds = np.unique(self.mat_inds)
         # Map drawable material indices to model material indices
         model_mat_inds = np.zeros(np.max(drawable_mat_inds) + 1, dtype=np.uint32)
@@ -95,6 +105,12 @@ class CableMeshBuilder:
         # NOTE: we just add the material and not assign it because Blender needs faces in the mesh to assign a
         #       material, but we don't have faces.
         #       On export, we just take the material from the materials list instead
+        mesh_add_cable_attribute(mesh, CableAttr.MATERIAL_INDEX)
+        mesh.attributes[CableAttr.MATERIAL_INDEX].data.foreach_set("value", model_mat_inds[verts_material_index])
+
+        # mesh.attributes.new("material_index", type="INT", domain="FACE")
+        # mesh.attributes["material_index"].data.foreach_set(
+        #     "value", model_mat_inds[self.mat_inds])
 
     def _gather_pieces(self) -> list[CablePiece]:
         pieces = []
@@ -113,17 +129,21 @@ class CableMeshBuilder:
 
         num_points = len(uniq_index)
 
+        material_index_per_vert = [0] * num_points
+
         # Find which point is the next one connected to each point. The game mesh connects two points with two
         # triangles, one going forward and the next one back. Here, we simplify the repesentation to a list of
         # points instead of triangles.
         next_map = [-1] * num_points
         prev_map = [-1] * num_points
-        for v0, v1, v2 in faces:
+        for face_index, (v0, v1, v2) in enumerate(faces):
             if v0 == v2: # forward tri
                 assert next_map[v0] == -1, "Point already connected!"
                 assert prev_map[v1] == -1, "Point already connected!"
                 next_map[v0] = v1
                 prev_map[v1] = v0
+                material_index_per_vert[v0] = self.mat_inds[face_index]
+                material_index_per_vert[v1] = self.mat_inds[face_index]
             else:
                 pass
 
@@ -162,6 +182,7 @@ class CableMeshBuilder:
                 point.diffuse_factor = a / 255
                 point.radius = abs(x)
                 point.um_scale = y / D if D != 0.0 else 0.0
+                point.material_index = material_index_per_vert[point.point_index]
 
             pieces.append(CablePiece(piece_points))
 

@@ -50,7 +50,8 @@ class CableOverlaysDrawHandler:
         if (not scene.sz_ui_cable_radius_visualize and
             not scene.sz_ui_cable_diffuse_factor_visualize and
             not scene.sz_ui_cable_um_scale_visualize and
-            not scene.sz_ui_cable_phase_offset_visualize):
+            not scene.sz_ui_cable_phase_offset_visualize and
+                not scene.sz_ui_cable_material_index_visualize):
             return False
 
         obj = context.active_object
@@ -76,6 +77,8 @@ class CableOverlaysDrawHandler:
             attrs.append(CableAttr.UM_SCALE)
         if scene.sz_ui_cable_phase_offset_visualize:
             attrs.append(CableAttr.PHASE_OFFSET)
+        if scene.sz_ui_cable_material_index_visualize:
+            attrs.append(CableAttr.MATERIAL_INDEX)
         self.draw_attribute_values(obj, attrs)
 
     def draw_geometry(self):
@@ -109,9 +112,12 @@ class CableOverlaysDrawHandler:
             pos = location_3d_to_region_2d(region, rv3d, pos)
             if pos:
                 for i, attr_value in enumerate(attr_values):
-                    if attrs[i] == CableAttr.PHASE_OFFSET: # phase offset is a FLOAT_VECTOR, not FLOAT
+                    attr_type = attrs[i].type
+                    if attr_type == "FLOAT_VECTOR":
                         attr_str = f"{attr_value[0]:.2f}  {attr_value[1]:.2f}"
-                    else:
+                    elif attr_type == "INT":
+                        attr_str = f"{attr_value}"
+                    else:  # FLOAT
                         attr_str = f"{attr_value:.2f}"
                     w, h = blf.dimensions(font_id, attr_str)
                     attr_pos = pos - Vector((w * 0.5, h * i * 2 - (h * len(attr_values) / 2)))
@@ -120,7 +126,7 @@ class CableOverlaysDrawHandler:
 
         if cable_obj.mode == "EDIT":
             edit_mesh = bmesh.from_edit_mesh(mesh)
-            attr_layers = [(edit_mesh.verts.layers.float_vector if attr.type == "FLOAT_VECTOR" else edit_mesh.verts.layers.float).get(attr, None) for attr in attrs]
+            attr_layers = [(edit_mesh.verts.layers.float_vector if attr.type == "FLOAT_VECTOR" else edit_mesh.verts.layers.int if attr.type == "INT" else edit_mesh.verts.layers.float).get(attr, None) for attr in attrs]
             for v in edit_mesh.verts:
                 attr_values = [attr.default_value if attr_layers[i] is None else v[attr_layers[i]]
                                for i, attr in enumerate(attrs)]

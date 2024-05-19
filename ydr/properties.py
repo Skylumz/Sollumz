@@ -650,6 +650,10 @@ def register():
         name=CableAttr.PHASE_OFFSET.label, description=CableAttr.PHASE_OFFSET.description,
         size=2, min=0.0, max=1.0, default=CableAttr.PHASE_OFFSET.default_value[0:2]
     )
+    bpy.types.Scene.sz_ui_cable_material_index_visualize = bpy.props.BoolProperty(
+        name="Show Material Index", description="Display the cable material indices on the 3D Viewport",
+        default=False
+    )
 
 
 def unregister():
@@ -686,5 +690,6 @@ def unregister():
     del bpy.types.Scene.sz_ui_cable_um_scale
     del bpy.types.Scene.sz_ui_cable_phase_offset_visualize
     del bpy.types.Scene.sz_ui_cable_phase_offset
+    del bpy.types.Scene.sz_ui_cable_material_index_visualize
 
     bpy.app.handlers.load_post.remove(on_file_loaded)
