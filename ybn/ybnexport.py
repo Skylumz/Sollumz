@@ -100,166 +100,131 @@ def create_bound_xml(obj: bpy.types.Object):
         logger.warning(f"'{obj.name}' has no collision materials! Skipping...")
         return
 
-    if obj.sollum_type == SollumType.BOUND_BOX:
-        box_xml = init_bound_child_xml(BoundBox(), obj)
+    match obj.sollum_type:
+        case SollumType.BOUND_BOX:
+            bound_xml = init_bound_child_xml(BoundBox(), obj)
 
-        box_min = box_xml.box_min
-        box_max = box_xml.box_max
-        extents = box_max - box_min
+            box_min = bound_xml.box_min
+            box_max = bound_xml.box_max
+            extents = box_max - box_min
 
-        from ..shared.geom_info import get_centroid_of_box, get_mass_properties_of_box
-        centroid, radius_around_centroid = get_centroid_of_box(box_min, box_max)
-        volume, cg, inertia = get_mass_properties_of_box(box_min, box_max)
+            from ..shared.geom_info import get_centroid_of_box, get_mass_properties_of_box
+            centroid, radius_around_centroid = get_centroid_of_box(box_min, box_max)
+            volume, cg, inertia = get_mass_properties_of_box(box_min, box_max)
+            margin = min(0.04, min(extents) / 8)  # in boxes the margin equals the smallest side divided by 8
 
-        set_bound_centroid(box_xml, centroid, radius_around_centroid)
-        set_bound_mass_properties(box_xml, volume, cg, inertia)
+        case SollumType.BOUND_DISC:
+            bound_xml = init_bound_child_xml(BoundDisc(), obj)
 
-        box_xml.margin = min(0.04, min(extents) / 8)  # in boxes the margin equals the smallest side divided by 8
+            # Same as a cylinder but along X-axis instead of Y-axis
+            bbmin, bbmax = bound_xml.box_min, bound_xml.box_max
+            extents = bbmax - bbmin
+            radius = extents.y * 0.5
+            length = extents.x
 
-        return box_xml
+            from ..shared.geom_info import get_centroid_of_disc, get_mass_properties_of_disc
+            centroid, radius_around_centroid = get_centroid_of_disc(radius)
+            volume, cg, inertia = get_mass_properties_of_disc(radius, length)
+            margin = length * 0.5  # in discs the margin equals half the length
 
-    if obj.sollum_type == SollumType.BOUND_DISC:
-        disc_xml = init_bound_child_xml(BoundDisc(), obj)
+        case SollumType.BOUND_SPHERE:
+            bound_xml = init_bound_child_xml(BoundSphere(), obj)
 
-        # Same as a cylinder but along X-axis instead of Y-axis
-        bbmin, bbmax = disc_xml.box_min, disc_xml.box_max
-        extents = bbmax - bbmin
-        radius = extents.y * 0.5
-        length = extents.x
+            bbmin, bbmax = bound_xml.box_min, bound_xml.box_max
+            radius = get_inner_sphere_radius(bbmin, bbmax)
 
-        from ..shared.geom_info import get_centroid_of_disc, get_mass_properties_of_disc
-        centroid, radius_around_centroid = get_centroid_of_disc(radius)
-        volume, cg, inertia = get_mass_properties_of_disc(radius, length)
+            from ..shared.geom_info import get_centroid_of_sphere, get_mass_properties_of_sphere
+            centroid, radius_around_centroid = get_centroid_of_sphere(radius)
+            volume, cg, inertia = get_mass_properties_of_sphere(radius)
+            margin = radius  # in spheres the margin equals the radius
 
-        set_bound_centroid(disc_xml, centroid, radius_around_centroid)
-        set_bound_mass_properties(disc_xml, volume, cg, inertia)
+        case SollumType.BOUND_CYLINDER:
+            bound_xml = init_bound_child_xml(BoundCylinder(), obj)
 
-        disc_xml.margin = length * 0.5  # in discs the margin equals half the length
+            bbmin, bbmax = bound_xml.box_min, bound_xml.box_max
+            extents = bbmax - bbmin
+            radius = extents.x * 0.5
+            length = extents.y
 
-        return disc_xml
+            from ..shared.geom_info import get_centroid_of_cylinder, get_mass_properties_of_cylinder
+            centroid, radius_around_centroid = get_centroid_of_cylinder(radius, length)
+            volume, cg, inertia = get_mass_properties_of_cylinder(radius, length)
+            # in cylinders the margin equals 1/4 the minimum between radius and half-length
+            margin = min(0.04, min(radius, length * 0.5) / 4)
 
-    if obj.sollum_type == SollumType.BOUND_SPHERE:
-        sphere_xml = init_bound_child_xml(BoundSphere(), obj)
+        case SollumType.BOUND_CAPSULE:
+            bound_xml = init_bound_child_xml(BoundCapsule(), obj)
 
-        bbmin, bbmax = sphere_xml.box_min, sphere_xml.box_max
-        radius = get_inner_sphere_radius(bbmin, bbmax)
+            bbmin, bbmax = bound_xml.box_min, bound_xml.box_max
+            extents = bbmax - bbmin
+            radius = extents.x * 0.5
+            length = extents.y - 2 * radius  # length without the top/bottom hemispheres
 
-        from ..shared.geom_info import get_centroid_of_sphere, get_mass_properties_of_sphere
-        centroid, radius_around_centroid = get_centroid_of_sphere(radius)
-        volume, cg, inertia = get_mass_properties_of_sphere(radius)
+            from ..shared.geom_info import get_centroid_of_capsule, get_mass_properties_of_capsule
+            centroid, radius_around_centroid = get_centroid_of_capsule(radius, length)
+            volume, cg, inertia = get_mass_properties_of_capsule(radius, length)
+            margin = radius  # in capsules the margin equals the capsule radius
 
-        set_bound_centroid(sphere_xml, centroid, radius_around_centroid)
-        set_bound_mass_properties(sphere_xml, volume, cg, inertia)
+        case SollumType.BOUND_GEOMETRY:
+            bound_xml = create_bound_geometry_xml(obj)
 
-        sphere_xml.margin = radius  # in spheres the margin equals the radius
+            mesh_vertices = np.array([(v + bound_xml.geometry_center) for v in bound_xml.vertices])
+            mesh_faces = []
+            for poly in bound_xml.polygons:
+                mesh_faces.append([poly.v1, poly.v2, poly.v3])
+            mesh_faces = np.array(mesh_faces)
 
-        return sphere_xml
+            from ..shared.geom_info import get_centroid_of_mesh, get_mass_properties_of_mesh
+            centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
+            volume, cg, inertia = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
+            # TODO: margin on Geometry (we might need to calculate shrunk vertices to get the correct value... or add it CW, and actually fix the shrunk vertices algorithm)
+            # TODO: need to grow bounding-box min/max by margin
+            margin = 0.04
 
-    if obj.sollum_type == SollumType.BOUND_CYLINDER:
-        cylinder_xml = init_bound_child_xml(BoundCylinder(), obj)
+        case SollumType.BOUND_GEOMETRYBVH:
+            bound_xml = create_bvh_xml(obj)
 
-        bbmin, bbmax = cylinder_xml.box_min, cylinder_xml.box_max
-        extents = bbmax - bbmin
-        radius = extents.x * 0.5
-        length = extents.y
+            # TODO: grow radius_around_centroid and bounding box from non-triangle primitives
+            mesh_vertices = np.array([(v + bound_xml.geometry_center) for v in bound_xml.vertices])
+            mesh_faces = []
+            for poly in bound_xml.polygons:
+                if not isinstance(poly, PolyTriangle):
+                    continue
+                mesh_faces.append([poly.v1, poly.v2, poly.v3])
+            mesh_faces = np.array(mesh_faces)
 
-        from ..shared.geom_info import get_centroid_of_cylinder, get_mass_properties_of_cylinder
-        centroid, radius_around_centroid = get_centroid_of_cylinder(radius, length)
-        volume, cg, inertia = get_mass_properties_of_cylinder(radius, length)
+            from ..shared.geom_info import get_centroid_of_mesh, get_mass_properties_of_mesh
+            centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
+            _, cg, _ = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
+            # BVHs don't need to calculate the volume or inertia
+            volume = 1.0
+            inertia = Vector((1.0, 1.0, 1.0))
+            margin = 0.04 # BVHs always have this margin
 
-        set_bound_centroid(cylinder_xml, centroid, radius_around_centroid)
-        set_bound_mass_properties(cylinder_xml, volume, cg, inertia)
+        case _:
+            assert False, f"Unknown bound type '{obj.sollum_type}'"
 
-        # in cylinders the margin equals 1/4 the minimum between radius and half-length
-        cylinder_xml.margin = min(0.04, min(radius, length * 0.5) / 4)
-
-        return cylinder_xml
-
-    if obj.sollum_type == SollumType.BOUND_CAPSULE:
-        capsule_xml = init_bound_child_xml(BoundCapsule(), obj)
-
-        bbmin, bbmax = capsule_xml.box_min, capsule_xml.box_max
-        extents = bbmax - bbmin
-        radius = extents.x * 0.5
-        length = extents.y - 2 * radius  # length without the top/bottom hemispheres
-
-        from ..shared.geom_info import get_centroid_of_capsule, get_mass_properties_of_capsule
-        centroid, radius_around_centroid = get_centroid_of_capsule(radius, length)
-        volume, cg, inertia = get_mass_properties_of_capsule(radius, length)
-
-        set_bound_centroid(capsule_xml, centroid, radius_around_centroid)
-        set_bound_mass_properties(capsule_xml, volume, cg, inertia)
-
-        capsule_xml.margin = radius  # in capsules the margin equals the capsule radius
-
-        return capsule_xml
-
-    if obj.sollum_type == SollumType.BOUND_GEOMETRY:
-        geom_xml = create_bound_geometry_xml(obj)
-
-        mesh_vertices = np.array([(v + geom_xml.geometry_center) for v in geom_xml.vertices])
-        mesh_faces = []
-        for poly in geom_xml.polygons:
-            mesh_faces.append([poly.v1, poly.v2, poly.v3])
-        mesh_faces = np.array(mesh_faces)
-
-        from ..shared.geom_info import get_centroid_of_mesh, get_mass_properties_of_mesh
-        centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
-        volume, cg, inertia = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
-
-        set_bound_centroid(geom_xml, centroid, radius_around_centroid)
-        set_bound_mass_properties(geom_xml, volume, cg, inertia)
-
-        # TODO: margin on Geometry (we might need to calculate shrunk vertices to get the correct value... or add it CW, and actually fix the shrunk vertices algorithm)
-        # TODO: need to grow bounding-box min/max by margin
-        geom_xml.margin = 0.04
-
-        return geom_xml
-
-    if obj.sollum_type == SollumType.BOUND_GEOMETRYBVH:
-        bvh_xml = create_bvh_xml(obj)
-
-        # TODO: grow radius_around_centroid and bounding box from non-triangle primitives
-        mesh_vertices = np.array([(v + bvh_xml.geometry_center) for v in bvh_xml.vertices])
-        mesh_faces = []
-        for poly in bvh_xml.polygons:
-            if not isinstance(poly, PolyTriangle):
-                continue
-            mesh_faces.append([poly.v1, poly.v2, poly.v3])
-        mesh_faces = np.array(mesh_faces)
-
-        from ..shared.geom_info import get_centroid_of_mesh, get_mass_properties_of_mesh
-        centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
-        _, cg, _ = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
-        # BVHs don't need to calculate the volume or inertia
-        volume = 1.0
-        inertia = Vector((1.0, 1.0, 1.0))
-
-        set_bound_centroid(bvh_xml, centroid, radius_around_centroid)
-        set_bound_mass_properties(bvh_xml, volume, cg, inertia)
-
-        bvh_xml.margin = 0.04 # BVHs always have this margin
-        return bvh_xml
+    set_bound_centroid(bound_xml, centroid, radius_around_centroid)
+    set_bound_mass_properties(bound_xml, volume, cg, inertia)
+    bound_xml.margin = margin
+    return bound_xml
 
 
-def has_col_mats(obj: bpy.types.Object):
-    col_mats = [
-        mat for mat in obj.data.materials if mat.sollum_type == MaterialType.COLLISION]
-
-    return len(col_mats) > 0
+def has_col_mats(obj: bpy.types.Object) -> bool:
+    col_mat = next((mat for mat in obj.data.materials if mat.sollum_type == MaterialType.COLLISION), None)
+    return col_mat is not None
 
 
-def bound_geom_has_mats(geom_obj: bpy.types.Object):
-    mats: list[bpy.types.Material] = []
-
+def bound_geom_has_mats(geom_obj: bpy.types.Object) -> bool:
     for child in geom_obj.children:
         if child.type != "MESH":
             continue
 
-        mats.extend(
-            [mat for mat in child.data.materials if mat.sollum_type == MaterialType.COLLISION])
+        col_mat = next((mat for mat in child.data.materials if mat.sollum_type == MaterialType.COLLISION), None)
+        if col_mat is not None:
+            return True
 
-    return len(mats) > 0
+    return False
 
 
 def init_bound_child_xml(bound_xml: T_BoundChild, obj: bpy.types.Object):
@@ -307,8 +272,7 @@ def create_bound_geom_xml_data(geom_xml: BoundGeometry | BoundGeometryBVH, obj: 
     num_vertices = len(geom_xml.vertices)
 
     if num_vertices == 0:
-        logger.warning(
-            f"{SOLLUMZ_UI_NAMES[SollumType.BOUND_GEOMETRY]} '{obj.name}' has no geometry!")
+        logger.warning(f"{SOLLUMZ_UI_NAMES[SollumType.BOUND_GEOMETRY]} '{obj.name}' has no geometry!")
 
     if num_vertices > MAX_VERTICES:
         logger.warning(
@@ -385,45 +349,32 @@ def create_bound_geom_xml_triangles(obj: bpy.types.Object, geom_xml: BoundGeomet
     """Create all bound poly triangles and vertices for a ``BoundGeometry`` object."""
     mesh = create_export_mesh(obj)
 
-    transforms = get_bound_poly_transforms_to_apply(
-        obj, geom_xml.composite_transform)
-
-    triangles = create_poly_xml_triangles(
-        mesh, transforms, get_vert_index, get_mat_index)
-
+    transforms = get_bound_poly_transforms_to_apply(obj, geom_xml.composite_transform)
+    triangles = create_poly_xml_triangles(mesh, transforms, get_vert_index, get_mat_index)
     geom_xml.polygons = triangles
 
 
 def create_bound_xml_poly_shape(obj: bpy.types.Object, geom_xml: BoundGeometryBVH, get_vert_index: Callable[[Vector], int], get_mat_index: Callable[[bpy.types.Material], int]):
     mesh = create_export_mesh(obj)
 
-    transforms = get_bound_poly_transforms_to_apply(
-        obj, geom_xml.composite_transform)
+    transforms = get_bound_poly_transforms_to_apply(obj, geom_xml.composite_transform)
 
-    if obj.sollum_type == SollumType.BOUND_POLY_TRIANGLE:
-        triangles = create_poly_xml_triangles(
-            mesh, transforms, get_vert_index, get_mat_index)
-        geom_xml.polygons.extend(triangles)
-
-    elif obj.sollum_type == SollumType.BOUND_POLY_BOX:
-        box_xml = create_poly_box_xml(
-            obj, transforms, get_vert_index, get_mat_index)
-        geom_xml.polygons.append(box_xml)
-
-    elif obj.sollum_type == SollumType.BOUND_POLY_SPHERE:
-        sphere_xml = create_poly_sphere_xml(
-            obj, transforms, get_vert_index, get_mat_index)
-        geom_xml.polygons.append(sphere_xml)
-
-    elif obj.sollum_type == SollumType.BOUND_POLY_CYLINDER:
-        cylinder_xml = create_poly_cylinder_capsule_xml(
-            PolyCylinder, obj, transforms, get_vert_index, get_mat_index)
-        geom_xml.polygons.append(cylinder_xml)
-
-    elif obj.sollum_type == SollumType.BOUND_POLY_CAPSULE:
-        capsule_xml = create_poly_cylinder_capsule_xml(
-            PolyCapsule, obj, transforms, get_vert_index, get_mat_index)
-        geom_xml.polygons.append(capsule_xml)
+    match obj.sollum_type:
+        case SollumType.BOUND_POLY_TRIANGLE:
+            triangles = create_poly_xml_triangles(mesh, transforms, get_vert_index, get_mat_index)
+            geom_xml.polygons.extend(triangles)
+        case SollumType.BOUND_POLY_BOX:
+            box_xml = create_poly_box_xml(obj, transforms, get_vert_index, get_mat_index)
+            geom_xml.polygons.append(box_xml)
+        case SollumType.BOUND_POLY_SPHERE:
+            sphere_xml = create_poly_sphere_xml(obj, transforms, get_vert_index, get_mat_index)
+            geom_xml.polygons.append(sphere_xml)
+        case SollumType.BOUND_POLY_CYLINDER:
+            cylinder_xml = create_poly_cylinder_capsule_xml(PolyCylinder, obj, transforms, get_vert_index, get_mat_index)
+            geom_xml.polygons.append(cylinder_xml)
+        case SollumType.BOUND_POLY_CAPSULE:
+            capsule_xml = create_poly_cylinder_capsule_xml(PolyCapsule, obj, transforms, get_vert_index, get_mat_index)
+            geom_xml.polygons.append(capsule_xml)
 
 
 def get_bound_poly_transforms_to_apply(obj: bpy.types.Object, composite_transform: Matrix):
@@ -571,7 +522,7 @@ def set_composite_xml_flags(bound_xml: BoundChild, obj: bpy.types.Object):
         flags_xml = getattr(bound_xml, prop_name)
 
         for flag_name in BoundFlags.__annotations__:
-            if flag_name not in flags_data_block or flags_data_block[flag_name] == False:
+            if flag_name not in flags_data_block or not flags_data_block[flag_name]:
                 continue
 
             flags_xml.append(flag_name.upper())
@@ -655,12 +606,12 @@ def get_composite_extents(composite_xml: BoundComposite):
     return get_min_vector_list(corner_vecs), get_max_vector_list(corner_vecs)
 
 
-def set_bound_centroid(bound_xml: Bound, centroid, radius_around_centroid):
+def set_bound_centroid(bound_xml: Bound, centroid: Vector, radius_around_centroid: float):
     bound_xml.box_center = centroid
     bound_xml.sphere_radius = radius_around_centroid
 
 
-def set_bound_mass_properties(bound_xml: Bound, volume, cg, inertia):
+def set_bound_mass_properties(bound_xml: Bound, volume: float, cg: Vector, inertia: Vector):
     bound_xml.sphere_center = cg
     bound_xml.volume = volume
     bound_xml.inertia = inertia

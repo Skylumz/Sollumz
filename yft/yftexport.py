@@ -471,6 +471,7 @@ def calculate_physics_lod_transforms(frag_xml: Fragment):
     """Calculate ``frag_xml.physics.lod1.transforms``. A transformation matrix per physics child that represents
     the offset from the child collision bound to its link center of gravity (aka "link attachment"). A link is
     formed by physics groups that act as a rigid body together, a group with a joint creates a new link.
+    Also calculates the physics LOD root CG offset.
     """
 
     lod_xml = frag_xml.physics.lod1
