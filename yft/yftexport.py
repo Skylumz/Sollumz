@@ -318,7 +318,6 @@ def create_frag_physics_xml(frag_obj: bpy.types.Object, frag_xml: Fragment, mate
     create_phys_xml_groups(frag_obj, lod_xml, frag_xml.glass_windows, materials)
     create_phys_child_xmls(frag_obj, lod_xml, drawable_xml.skeleton.bones, materials, col_obj_to_bound_index)
 
-
     calculate_group_masses(lod_xml)
     calculate_child_drawable_matrices(frag_xml)
 
@@ -326,6 +325,7 @@ def create_frag_physics_xml(frag_obj: bpy.types.Object, frag_xml: Fragment, mate
 
     calculate_physics_lod_transforms(frag_xml)
     calculate_archetype_mass_inertia(lod_xml)
+    calculate_physics_lod_inertia_limits(lod_xml)
 
 
 def create_phys_lod_xml(phys_xml: Physics, lod_props: LODProperties):
@@ -334,6 +334,19 @@ def create_phys_lod_xml(phys_xml: Physics, lod_props: LODProperties):
     phys_xml.lod3 = None
 
     return phys_xml.lod1
+
+
+def calculate_physics_lod_inertia_limits(lod_xml: PhysicsLOD):
+    """Calculates the physics LOD smallest and largest angular inertia from its children."""
+    phys_children = lod_xml.children
+    inertia_values = [value for c in phys_children for value in c.inertia_tensor.xyz]
+    largest_inertia = max(inertia_values)
+    smallest_inertia = largest_inertia / 10000.0  # game assets always have same value as largest divided by 10000
+
+    # unknown_14 = smallest angular inertia
+    # unknown_18 = largest angular inertia
+    lod_xml.unknown_14 = smallest_inertia
+    lod_xml.unknown_18 = largest_inertia
 
 
 def create_archetype_xml(lod_xml: PhysicsLOD, frag_obj: bpy.types.Object):
@@ -485,7 +498,7 @@ def calculate_physics_lod_transforms(frag_xml: Fragment):
         children_by_group[group].append((child_index, child))
 
     # Array of links (i.e. array of arrays of groups)
-    links = [[]] # the root link is at index 0
+    links = [[]]  # the root link is at index 0
     link_index_by_group = [-1] * len(lod_xml.groups)
 
     # Determine the groups that form each link
@@ -533,8 +546,8 @@ def calculate_physics_lod_transforms(frag_xml: Fragment):
     # add the user-defined unbroken CG offset to the root CG offset
     links_center_of_gravity[0] += lod_xml.unknown_50
 
-    lod_xml.position_offset = links_center_of_gravity[0] # aka "root CG offset"
-    lod_xml.unknown_40 = lod_xml.position_offset # aka "original root CG offset", same as root CG offset in all game .yfts
+    lod_xml.position_offset = links_center_of_gravity[0]  # aka "root CG offset"
+    lod_xml.unknown_40 = lod_xml.position_offset  # aka "original root CG offset", same as root CG offset in all game .yfts
 
     # Calculate child transforms (aka "link attachments", offset from bound to link CG)
     for child_index, child in enumerate(lod_xml.children):
@@ -921,8 +934,6 @@ def calculate_child_drawable_matrices(frag_xml: Fragment):
 
 
 def set_lod_xml_properties(lod_props: LODProperties, lod_xml: PhysicsLOD):
-    lod_xml.unknown_14 = lod_props.smallest_ang_inertia
-    lod_xml.unknown_18 = lod_props.largest_ang_inertia
     lod_xml.unknown_1c = lod_props.min_move_force
     lod_xml.unknown_50 = prop_array_to_vector(lod_props.unbroken_cg_offset)
     lod_xml.damping_linear_c = prop_array_to_vector(lod_props.damping_linear_c)
@@ -1020,7 +1031,7 @@ def add_frag_glass_window_xml(
     if len(plane_a) != 2 or len(plane_b) != 2:
         logger.warning(f"Glass window '{group_xml.name}' mesh planes need to be made up of 2 triangles each.")
         if len(plane_a) < 2 or len(plane_b) < 2:
-            return # need at least 2 tris in each plane to continue
+            return  # need at least 2 tris in each plane to continue
 
     normals = (plane_a[0].normal, plane_a[1].normal, plane_b[0].normal, plane_b[1].normal)
     if any(a.cross(b).length_squared > float_info.epsilon for a, b in combinations(normals, 2)):
@@ -1152,12 +1163,12 @@ def calc_frag_glass_window_bounds_offset(
     #  [6] = (max.x, max.y, max.z)
     #  [7] = (max.x, max.y, min.z)
     plane_points = (
-        (bbs[4], bbs[3], bbs[0], bbs[7]), # bottom
-        (bbs[1], bbs[2], bbs[5], bbs[7]), # top
-        (bbs[2], bbs[1], bbs[0], bbs[3]), # left
-        (bbs[4], bbs[5], bbs[6], bbs[7]), # right
-        (bbs[0], bbs[1], bbs[4], bbs[5]), # front
-        (bbs[2], bbs[3], bbs[6], bbs[7]), # back
+        (bbs[4], bbs[3], bbs[0], bbs[7]),  # bottom
+        (bbs[1], bbs[2], bbs[5], bbs[7]),  # top
+        (bbs[2], bbs[1], bbs[0], bbs[3]),  # left
+        (bbs[4], bbs[5], bbs[6], bbs[7]),  # right
+        (bbs[0], bbs[1], bbs[4], bbs[5]),  # front
+        (bbs[2], bbs[3], bbs[6], bbs[7]),  # back
     )
     planes = [_get_plane(Vector(a), Vector(b), Vector(c), Vector(d)) for a, b, c, d in plane_points]
 

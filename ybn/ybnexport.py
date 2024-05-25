@@ -94,7 +94,7 @@ def create_composite_xml(
     return composite_xml
 
 
-def create_bound_xml(obj: bpy.types.Object):
+def create_bound_xml(obj: bpy.types.Object) -> BoundChild:
     """Create a ``Bound`` instance based on `obj.sollum_type``."""
     if (obj.type == "MESH" and not has_col_mats(obj)) or (obj.type == "EMPTY" and not bound_geom_has_mats(obj)):
         logger.warning(f"'{obj.name}' has no collision materials! Skipping...")

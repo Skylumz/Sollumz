@@ -360,6 +360,31 @@ if is_tmp_dir_available():  # need the temp directory to store exported .yfts
                      f"   diff={output_root_cg_offset - input_root_cg_offset}")
         )
 
+    def test_yft_smallest_largest_ang_inertia(yft_file_test_case: YftFileTestCase):
+        XPATH_SMALLEST_ANG_INERTIA = "./Physics/LOD1/Unknown14"
+        XPATH_LARGEST_ANG_INERTIA = "./Physics/LOD1/Unknown18"
+
+        input_root = yft_file_test_case.input_root
+        output_root = yft_file_test_case.output_root
+
+        input_smallest_ang_inertia = elem_to_float(input_root.find(XPATH_SMALLEST_ANG_INERTIA))
+        input_largest_ang_inertia = elem_to_float(input_root.find(XPATH_LARGEST_ANG_INERTIA))
+        output_smallest_ang_inertia = elem_to_float(output_root.find(XPATH_SMALLEST_ANG_INERTIA))
+        output_largest_ang_inertia = elem_to_float(output_root.find(XPATH_LARGEST_ANG_INERTIA))
+
+        assert_allclose(
+            output_smallest_ang_inertia, input_smallest_ang_inertia,
+            atol=atol,
+            err_msg=(f"Calculated smallest angular inertia does not match original.\n"
+                     f"   diff={output_smallest_ang_inertia - input_smallest_ang_inertia}")
+        )
+        assert_allclose(
+            output_largest_ang_inertia, input_largest_ang_inertia,
+            atol=atol,
+            err_msg=(f"Calculated largest angular inertia does not match original.\n"
+                     f"   diff={output_largest_ang_inertia - input_largest_ang_inertia}")
+        )
+
     def test_yft_archetype_inertia(yft_file_test_case: YftFileTestCase):
         XPATH_ARCH_INERTIA = "./Physics/LOD1/Archetype/InertiaTensor"
         XPATH_ARCH_INERTIA_INV = "./Physics/LOD1/Archetype/InertiaTensorInv"

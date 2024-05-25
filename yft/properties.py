@@ -14,8 +14,6 @@ class FragArchetypeProperties(bpy.types.PropertyGroup):
 
 
 class LODProperties(bpy.types.PropertyGroup):
-    smallest_ang_inertia: bpy.props.FloatProperty(name="Smallest Angular Inertia")
-    largest_ang_inertia: bpy.props.FloatProperty(name="Largest Angular Inertia")
     min_move_force: bpy.props.FloatProperty(name="Min Move Force")
     unbroken_cg_offset: bpy.props.FloatVectorProperty(name="Unbroken CG Offset", subtype="XYZ")
     damping_linear_c: bpy.props.FloatVectorProperty(name="Damping Linear C", default=(0.02, 0.02, 0.02))

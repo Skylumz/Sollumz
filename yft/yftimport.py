@@ -478,8 +478,6 @@ def set_fragment_properties(frag_xml: Fragment, frag_obj: bpy.types.Object):
 
 
 def set_lod_properties(lod_xml: PhysicsLOD, lod_props: LODProperties):
-    lod_props.smallest_ang_inertia = lod_xml.unknown_14
-    lod_props.largest_ang_inertia = lod_xml.unknown_18
     lod_props.min_move_force = lod_xml.unknown_1c
     lod_props.unbroken_cg_offset = lod_xml.unknown_50
     lod_props.damping_linear_c = lod_xml.damping_linear_c
