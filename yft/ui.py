@@ -197,32 +197,10 @@ class SOLLUMZ_PT_PHYS_LODS_PANEL(bpy.types.Panel):
         lod_props = obj.fragment_properties.lod_properties
 
         for prop in lod_props.__annotations__:
-            if prop == "archetype_properties" or prop == "use_root_cg_offset_override":
+            if prop == "archetype_properties":
                 continue
 
-            if prop == "root_cg_offset_override":
-                # Just some custom UI to place a toggle button next to the vector prop and have it all neatly aligned...
-                row = layout.row(align=True)
-                split = row.split(factor=0.4, align=True)
-
-                labels_col = split.column(align=True)
-                labels_col.alignment = "RIGHT"
-                labels_col.label(text="Root CG Offset X")
-                labels_col.label(text="Y")
-                labels_col.label(text="Z")
-
-                inputs_col = split.column(align=True)
-                inputs_split = inputs_col.split(factor=0.94, align=True)
-                vals_col = inputs_split.column(align=True)
-                vals_col.active = lod_props.use_root_cg_offset_override
-                vals_col.prop(lod_props, "root_cg_offset_override", index=0, text="")
-                vals_col.prop(lod_props, "root_cg_offset_override", index=1, text="")
-                vals_col.prop(lod_props, "root_cg_offset_override", index=2, text="")
-                toggle_col = inputs_split.column(align=True)
-                toggle_col.scale_y = 3.0 # make the toggle button span the 3 rows
-                toggle_col.prop(lod_props, "use_root_cg_offset_override", toggle=True, icon="MODIFIER_ON", icon_only=True)
-            else:
-                layout.prop(lod_props, prop)
+            layout.prop(lod_props, prop)
 
 
 

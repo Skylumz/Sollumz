@@ -318,13 +318,14 @@ def create_frag_physics_xml(frag_obj: bpy.types.Object, frag_xml: Fragment, mate
     create_phys_xml_groups(frag_obj, lod_xml, frag_xml.glass_windows, materials)
     create_phys_child_xmls(frag_obj, lod_xml, drawable_xml.skeleton.bones, materials, col_obj_to_bound_index)
 
-    set_arch_mass_inertia(frag_obj, arch_xml, lod_xml.children)
+
     calculate_group_masses(lod_xml)
     calculate_child_drawable_matrices(frag_xml)
 
     sort_cols_and_children(lod_xml)
 
     calculate_physics_lod_transforms(frag_xml)
+    calculate_archetype_mass_inertia(lod_xml)
 
 
 def create_phys_lod_xml(phys_xml: Physics, lod_props: LODProperties):
@@ -338,36 +339,31 @@ def create_phys_lod_xml(phys_xml: Physics, lod_props: LODProperties):
 def create_archetype_xml(lod_xml: PhysicsLOD, frag_obj: bpy.types.Object):
     archetype_props: FragArchetypeProperties = frag_obj.fragment_properties.lod_properties.archetype_properties
 
-    set_archetype_xml_properties(
-        archetype_props, lod_xml.archetype, remove_number_suffix(frag_obj.name))
+    set_archetype_xml_properties(archetype_props, lod_xml.archetype, remove_number_suffix(frag_obj.name))
     lod_xml.archetype2 = None
 
     return lod_xml.archetype
 
 
-def set_arch_mass_inertia(frag_obj: bpy.types.Object, arch_xml: Archetype, phys_children: list[PhysicsChild]):
-    """Set archetype mass based on children mass. Expects physics children and collisions to exist."""
-    mass = calculate_arch_mass(phys_children)
+def calculate_archetype_mass_inertia(lod_xml: PhysicsLOD):
+    """Set archetype mass and inertia based on children mass and bounds. Expects physics children and collisions to
+    exist, and the physics LOD root CG to have already been calculted.
+    """
+
+    from ..shared.geom_info import calculate_composite_inertia
+    phys_children = lod_xml.children
+    bounds = lod_xml.archetype.bounds.children
+    masses = [child_xml.pristine_mass for child_xml in phys_children]
+    inertias = [child_xml.inertia_tensor.xyz for child_xml in phys_children]
+    cgs = [bound_xml.composite_transform.transposed() @ bound_xml.sphere_center for bound_xml in bounds]
+    mass = sum(masses)
+    inertia = calculate_composite_inertia(lod_xml.position_offset, cgs, masses, inertias)
+
+    arch_xml = lod_xml.archetype
     arch_xml.mass = mass
     arch_xml.mass_inv = (1 / mass) if mass != 0 else 0
-
-    archetype_props: FragArchetypeProperties = frag_obj.fragment_properties.lod_properties.archetype_properties
-
-    # TODO(dev/bound-physics): check if the archetype inertia calculation is correct
-    inertia = calculate_inertia(arch_xml.bounds.box_min, arch_xml.bounds.box_max) * mass
-
     arch_xml.inertia_tensor = inertia
     arch_xml.inertia_tensor_inv = vector_inv(inertia)
-
-
-def calculate_arch_mass(phys_children: list[PhysicsChild]) -> float:
-    """Calculate archetype mass based on mass of physics children."""
-    total_mass = 0
-
-    for child_xml in phys_children:
-        total_mass += child_xml.pristine_mass
-
-    return total_mass
 
 
 def create_collision_xml(
@@ -383,7 +379,6 @@ def create_collision_xml(
         arch_xml.bounds = composite_xml
 
         composite_xml.unk_type = 2
-        composite_xml.inertia = Vector((1, 1, 1))
 
         for bound_xml in composite_xml.children:
             bound_xml.unk_type = 2
@@ -516,8 +511,6 @@ def calculate_physics_lod_transforms(frag_xml: Fragment):
 
     # Calculate center of gravity of each link. This is the weighted mean of the center of gravity of all physics
     # children that form the link.
-    # TODO: we can reuse these calculations to automatically set lod_xml.position_offset, lod_xml.unknown_40 and
-    # lod_xml.unknown_50
     links_center_of_gravity = [Vector((0.0, 0.0, 0.0)) for _ in range(len(links))]
     for link_index, groups in enumerate(links):
         link_total_mass = 0.0
@@ -527,23 +520,18 @@ def calculate_physics_lod_transforms(frag_xml: Fragment):
                 if bound is not None:
                     # sphere_center is the center of gravity
                     center = bound.composite_transform.transposed() @ bound.sphere_center
-                    # print(f"link_bounds_cgs[{link_index}][{group_index}][{child_index_rel}]={bound.sphere_center}")
                 else:
                     center = Vector((0.0, 0.0, 0.0))
-                    # print(f"link_bounds_cgs[{link_index}][{group_index}][{child_index_rel}]={Vector((-999.99, -999.99, -999.99))}")
 
-                # print(f"link_children_center[{link_index}][{group_index}][{child_index_rel}]={center}")
                 child_mass = child.pristine_mass
                 links_center_of_gravity[link_index] += center * child_mass
                 link_total_mass += child_mass
 
-        # print(f"link_total_mass[{link_index}]={link_total_mass}")
         links_center_of_gravity[link_index] /= link_total_mass
 
-    # for i, _ in enumerate(links_center_of_gravity):
-    #     print(f"links_center_of_gravity[{i}]={links_center_of_gravity[i]}")
+    # add the user-defined unbroken CG offset to the root CG offset
+    links_center_of_gravity[0] += lod_xml.unknown_50
 
-    # TODO: check root CG offset override
     lod_xml.position_offset = links_center_of_gravity[0] # aka "root CG offset"
     lod_xml.unknown_40 = lod_xml.position_offset # aka "original root CG offset", same as root CG offset in all game .yfts
 
@@ -595,10 +583,7 @@ def create_phys_child_xmls(
             child_xml.pristine_mass = obj.child_properties.mass
             child_xml.damaged_mass = child_xml.pristine_mass
             child_xml.bone_tag = bones_xml[bone_index].tag
-
-            # TODO(dev/bound-physics): check if the physics child inertia tensor is correct
-            inertia_tensor = get_child_inertia(lod_xml.archetype, child_xml, bound_index)
-            child_xml.inertia_tensor = inertia_tensor
+            child_xml.inertia_tensor = get_child_inertia(lod_xml.archetype, child_xml, bound_index)
 
             mesh_objs = None
             if bone_name in child_meshes:

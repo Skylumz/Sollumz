@@ -481,8 +481,6 @@ def set_lod_properties(lod_xml: PhysicsLOD, lod_props: LODProperties):
     lod_props.smallest_ang_inertia = lod_xml.unknown_14
     lod_props.largest_ang_inertia = lod_xml.unknown_18
     lod_props.min_move_force = lod_xml.unknown_1c
-    lod_props.root_cg_offset_override = lod_xml.position_offset
-    lod_props.use_root_cg_offset_override = True # TODO: determine if root CG offset was calculated or manually tweaked
     lod_props.unbroken_cg_offset = lod_xml.unknown_50
     lod_props.damping_linear_c = lod_xml.damping_linear_c
     lod_props.damping_linear_v = lod_xml.damping_linear_v
@@ -498,7 +496,6 @@ def set_archetype_properties(arch_xml: Archetype, arch_props: FragArchetypePrope
     arch_props.max_speed = arch_xml.unknown_4c
     arch_props.max_ang_speed = arch_xml.unknown_50
     arch_props.buoyancy_factor = arch_xml.unknown_54
-    arch_props.inertia_tensor = arch_xml.inertia_tensor
 
 
 def set_group_properties(group_xml: PhysicsGroup, bone: bpy.types.Bone):

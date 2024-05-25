@@ -107,7 +107,7 @@ def create_bound_xml(obj: bpy.types.Object):
         box_max = box_xml.box_max
         extents = box_max - box_min
 
-        from ..shared.mesh_info import get_centroid_of_box, get_mass_properties_of_box
+        from ..shared.geom_info import get_centroid_of_box, get_mass_properties_of_box
         centroid, radius_around_centroid = get_centroid_of_box(box_min, box_max)
         volume, cg, inertia = get_mass_properties_of_box(box_min, box_max)
 
@@ -127,7 +127,7 @@ def create_bound_xml(obj: bpy.types.Object):
         radius = extents.y * 0.5
         length = extents.x
 
-        from ..shared.mesh_info import get_centroid_of_disc, get_mass_properties_of_disc
+        from ..shared.geom_info import get_centroid_of_disc, get_mass_properties_of_disc
         centroid, radius_around_centroid = get_centroid_of_disc(radius)
         volume, cg, inertia = get_mass_properties_of_disc(radius, length)
 
@@ -144,7 +144,7 @@ def create_bound_xml(obj: bpy.types.Object):
         bbmin, bbmax = sphere_xml.box_min, sphere_xml.box_max
         radius = get_inner_sphere_radius(bbmin, bbmax)
 
-        from ..shared.mesh_info import get_centroid_of_sphere, get_mass_properties_of_sphere
+        from ..shared.geom_info import get_centroid_of_sphere, get_mass_properties_of_sphere
         centroid, radius_around_centroid = get_centroid_of_sphere(radius)
         volume, cg, inertia = get_mass_properties_of_sphere(radius)
 
@@ -163,7 +163,7 @@ def create_bound_xml(obj: bpy.types.Object):
         radius = extents.x * 0.5
         length = extents.y
 
-        from ..shared.mesh_info import get_centroid_of_cylinder, get_mass_properties_of_cylinder
+        from ..shared.geom_info import get_centroid_of_cylinder, get_mass_properties_of_cylinder
         centroid, radius_around_centroid = get_centroid_of_cylinder(radius, length)
         volume, cg, inertia = get_mass_properties_of_cylinder(radius, length)
 
@@ -183,7 +183,7 @@ def create_bound_xml(obj: bpy.types.Object):
         radius = extents.x * 0.5
         length = extents.y - 2 * radius  # length without the top/bottom hemispheres
 
-        from ..shared.mesh_info import get_centroid_of_capsule, get_mass_properties_of_capsule
+        from ..shared.geom_info import get_centroid_of_capsule, get_mass_properties_of_capsule
         centroid, radius_around_centroid = get_centroid_of_capsule(radius, length)
         volume, cg, inertia = get_mass_properties_of_capsule(radius, length)
 
@@ -203,21 +203,12 @@ def create_bound_xml(obj: bpy.types.Object):
             mesh_faces.append([poly.v1, poly.v2, poly.v3])
         mesh_faces = np.array(mesh_faces)
 
-        from ..shared.mesh_info import get_centroid_of_mesh, get_mass_properties_of_mesh
+        from ..shared.geom_info import get_centroid_of_mesh, get_mass_properties_of_mesh
         centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
         volume, cg, inertia = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
 
         set_bound_centroid(geom_xml, centroid, radius_around_centroid)
         set_bound_mass_properties(geom_xml, volume, cg, inertia)
-
-        if False:
-            import stl
-            stl_mesh = stl.mesh.Mesh(np.zeros(mesh_faces.shape[0], dtype=stl.mesh.Mesh.dtype))
-            for i, f in enumerate(mesh_faces):
-                for j in range(3):
-                    stl_mesh.vectors[i][j] = mesh_vertices[f[j], :]
-
-            stl_mesh.save(f"D:\\re\\gta5\\sollumz\\TESTS\\TMP\\{obj.name}.stl")
 
         # TODO: margin on Geometry (we might need to calculate shrunk vertices to get the correct value... or add it CW, and actually fix the shrunk vertices algorithm)
         # TODO: need to grow bounding-box min/max by margin
@@ -228,8 +219,7 @@ def create_bound_xml(obj: bpy.types.Object):
     if obj.sollum_type == SollumType.BOUND_GEOMETRYBVH:
         bvh_xml = create_bvh_xml(obj)
 
-        # TODO: maybe we should iterate the primitives and add some more vertices depending on primitive type? sphere, cylinder, etc
-        #       Or after, grow radius_around_centroid and bounding box from the primitives
+        # TODO: grow radius_around_centroid and bounding box from non-triangle primitives
         mesh_vertices = np.array([(v + bvh_xml.geometry_center) for v in bvh_xml.vertices])
         mesh_faces = []
         for poly in bvh_xml.polygons:
@@ -238,9 +228,8 @@ def create_bound_xml(obj: bpy.types.Object):
             mesh_faces.append([poly.v1, poly.v2, poly.v3])
         mesh_faces = np.array(mesh_faces)
 
-        from ..shared.mesh_info import get_centroid_of_mesh, get_mass_properties_of_mesh
+        from ..shared.geom_info import get_centroid_of_mesh, get_mass_properties_of_mesh
         centroid, radius_around_centroid = get_centroid_of_mesh(mesh_vertices)
-        cg = centroid # TODO: CG of BVH? doesn't seem to match the centroid
         _, cg, _ = get_mass_properties_of_mesh(mesh_vertices, mesh_faces)
         # BVHs don't need to calculate the volume or inertia
         volume = 1.0

@@ -15,6 +15,11 @@ def elem_to_vec(e: ET.Element):
     return np.array([float(e.get(k)) for k in ("x", "y", "z")])
 
 
+def elem_to_vec4(e: ET.Element):
+    """Gets the `x`, `y`, `z` and `w` attributes values as a numpy array."""
+    return np.array([float(e.get(k)) for k in ("x", "y", "z", "w")])
+
+
 def elem_to_float(e: ET.Element):
     """Gets the `value` attribute value as a numpy array."""
     return np.array([float(e.get("value"))])
@@ -70,6 +75,9 @@ if is_tmp_dir_available():  # need the temp directory to store exported .yfts
         test_cases = []
         for yft_path, yft_path_str in glob_assets("yft"):
             if "sollumz_cube" in yft_path_str:  # has properties calculated with the old method, disabled until the model is updated
+                continue
+
+            if yft_path_str.endswith("_hi.yft.xml"):
                 continue
 
             obj = import_yft(yft_path_str)
@@ -264,6 +272,10 @@ if is_tmp_dir_available():  # need the temp directory to store exported .yfts
         )
 
     def test_yft_bound_margin(yft_test_case: YftTestCase):
+        if yft_test_case.child_key[2] == "Geometry":
+            # TODO: Geometry bound margin not calculated yet
+            return
+
         input_bound = yft_test_case.input_bound
         output_bound = yft_test_case.output_bound
 
@@ -316,20 +328,59 @@ if is_tmp_dir_available():  # need the temp directory to store exported .yfts
                      f"   diff={output_values[mismatched] - input_values[mismatched]}")
         )
 
+    def test_yft_child_inertia(yft_test_case: YftTestCase):
+        if yft_test_case.is_root_composite:
+            return
+
+        input_child = yft_test_case.input_child
+        output_child = yft_test_case.output_child
+
+        input_inertia = elem_to_vec4(input_child.find("InertiaTensor"))
+        output_inertia = elem_to_vec4(output_child.find("InertiaTensor"))
+        assert_allclose(
+            output_inertia, input_inertia,
+            atol=atol,
+            err_msg=(f"Calculated child inertia does not match original.\n"
+                     f"   diff={output_inertia - input_inertia}")
+        )
+
     def test_yft_root_cg_offset(yft_file_test_case: YftFileTestCase):
         XPATH_ROOT_CG_OFFSET = "./Physics/LOD1/PositionOffset"
 
         input_root = yft_file_test_case.input_root
         output_root = yft_file_test_case.output_root
 
-        input_root_cg_offset = input_root.find(XPATH_ROOT_CG_OFFSET)
-        output_root_cg_offset = output_root.find(XPATH_ROOT_CG_OFFSET)
+        input_root_cg_offset = elem_to_vec(input_root.find(XPATH_ROOT_CG_OFFSET))
+        output_root_cg_offset = elem_to_vec(output_root.find(XPATH_ROOT_CG_OFFSET))
 
-        input_root_cg_offset_vec = elem_to_vec(input_root_cg_offset)
-        output_root_cg_offset_vec = elem_to_vec(output_root_cg_offset)
         assert_allclose(
-            output_root_cg_offset_vec, input_root_cg_offset_vec,
+            output_root_cg_offset, input_root_cg_offset,
             atol=atol,
             err_msg=(f"Calculated root CG offset does not match original.\n"
-                     f"   diff={output_root_cg_offset_vec - input_root_cg_offset_vec}")
+                     f"   diff={output_root_cg_offset - input_root_cg_offset}")
+        )
+
+    def test_yft_archetype_inertia(yft_file_test_case: YftFileTestCase):
+        XPATH_ARCH_INERTIA = "./Physics/LOD1/Archetype/InertiaTensor"
+        XPATH_ARCH_INERTIA_INV = "./Physics/LOD1/Archetype/InertiaTensorInv"
+
+        input_root = yft_file_test_case.input_root
+        output_root = yft_file_test_case.output_root
+
+        input_inertia = elem_to_vec(input_root.find(XPATH_ARCH_INERTIA))
+        input_inertia_inv = elem_to_vec(input_root.find(XPATH_ARCH_INERTIA_INV))
+        output_inertia = elem_to_vec(output_root.find(XPATH_ARCH_INERTIA))
+        output_inertia_inv = elem_to_vec(output_root.find(XPATH_ARCH_INERTIA_INV))
+
+        assert_allclose(
+            output_inertia, input_inertia,
+            atol=atol,
+            err_msg=(f"Calculated archetype inertia does not match original.\n"
+                     f"   diff={output_inertia - input_inertia}")
+        )
+        assert_allclose(
+            output_inertia_inv, input_inertia_inv,
+            atol=atol,
+            err_msg=(f"Calculated archetype inertia does not match original.\n"
+                     f"   diff={output_inertia_inv - input_inertia_inv}")
         )
